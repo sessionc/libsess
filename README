@@ -1,0 +1,43 @@
+====================================
+sesscc: Session C compiler framework
+====================================
+
+File listing
+------------
+docs/
+
+
+include/
+  libsess.h  - Header file for runtime library
+  zhelpers.h - Helper header file from ZMQ library
+
+  st_node.h - Session Type tree representation
+  stack.h   - Helper file for st_node building
+  parser.h  - Header file for Scribble parser
+
+  ScribbleProtocolLexer.h  - [GENERATED] Scribble lexer
+  ScribbleProtocolParser.h - [GENERATED] Scribble parser
+
+src/
+  libsess/
+    libsess.c - Source file for runtime library
+    common/st_node.h - Session node representation (header) **
+    common/st_node.c - Session node representation (source) **
+    parser/parser.h - Parser entry point (header) **
+    parser/parser.c - Parser entry point (source) **
+
+  examples/
+    sendrecv.c - Sending-receiving test example
+
+  binary_iter/
+    iter_Alice.c - inoutwhile test: Alice part
+    iter_Bob.c   - inoutwhile test: Bob part
+
+  multiparty_iter/
+    iter_Alice.c   - inoutwhile test: Alice part
+    iter_Bob.c     - inoutwhile test: Bob part
+    iter_Charlie.c - inoutwhile test: Charlie part
+
+
+**: Source from a different SVN repository,
+    needs to be updated separately
