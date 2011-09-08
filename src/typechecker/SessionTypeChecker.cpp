@@ -24,11 +24,6 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Rewrite/ASTConsumers.h"
 
-#include "clang/Lex/Lexer.h"
-#include "clang/Lex/PreprocessorLexer.h"
-#include "clang/Basic/LangOptions.h"
-#include "llvm/ADT/SmallVector.h"
-
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Frontend/CompilerInstance.h"
 
@@ -76,7 +71,6 @@ namespace {
     typedef TypeLocVisitor<SessionTypeCheckingConsumer> BaseTypeLocVisitor;
 
     public:
-
       virtual void Initialise(ASTContext &ctx, std::string &scribble_filename) {
         context_ = &ctx;
         src_mgr_ = &context_->getSourceManager();
@@ -114,10 +108,6 @@ namespace {
 
         appendto_node.push(root_);
 
-#ifdef __DEBUG__
-        fprintf(stderr, "Walk AST for ST tree.\n");
-#endif 
-
         for (DeclContext::decl_iterator
              iter = tu_decl->decls_begin(), iter_end = tu_decl->decls_end();
              iter != iter_end; ++iter) {
@@ -126,10 +116,7 @@ namespace {
           BaseDeclVisitor::Visit(decl);
         }
 
-#ifdef __DEBUG__
-        fprintf(stderr, "Normalise ST tree.\n");
-#endif 
-
+        // Normalise.
         normalise(root_);
         remove_empty_branch_node(root_);
         sort_branches(root_);
@@ -616,7 +603,16 @@ namespace {
             } 
           } else { // Not callExpr and callExpr not inwhile/outwhile.
 
-            // TODO: RECUR_NODE
+            st_node *node = (st_node *)malloc(sizeof(st_node));
+            init_st_node(node, RECUR_NODE, "", "");
+
+            st_node *previous_node = appendto_node.top();
+            append_st_node(previous_node, node);
+            appendto_node.push(node);
+
+            BaseStmtVisitor::Visit(whileStmt->getBody());
+
+            appendto_node.pop();
 
             return;
           }
@@ -642,7 +638,7 @@ namespace {
           st_node *node = (st_node *)malloc(sizeof(st_node));
           init_st_node(node, BRANCH_NODE, "", "");
 
-          st_node * previous_node = appendto_node.top();
+          st_node *previous_node = appendto_node.top();
           append_st_node(previous_node, node);
           appendto_node.push(node);
 
@@ -778,3 +774,7 @@ namespace {
 
 static FrontendPluginRegistry::Add<SessionTypeCheckingAction>
 X("sess-type-check", "Session type checker");
+#ifdef __DEBUG__
+        fprintf(stderr, "Normalise ST tree.\n");
+#endif 
+

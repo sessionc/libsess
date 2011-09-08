@@ -186,7 +186,7 @@ int _visit_and_compare(st_node *root, st_node *other)
 
 /**
  * Compares two session type graph and see if they are the same.
- * Also takes care of unique branches in different order.
+ * This is the toplevel compare function.
  */
 int compare_st_node(st_node *node, st_node *other)
 {
@@ -198,50 +198,10 @@ int compare_st_node(st_node *node, st_node *other)
     return 0;
   }
 
-    // Identical nodes
-    /*if (!_compare_st_node(node, other)) {
-#ifdef __DEBUG__
-        fprintf(stderr, "<%p type=%s role=%s datatype=%s tag=%s next_sz=%d> != <%p type=%s role=%s datatype=%s tag=%s next_sz=%d>\n", 
-                (void *)node, node_type[node->type], node->role,
-                node->datatype, node->branchtag, node->next_sz,
-                (void *)other, node_type[other->type], other->role,
-                other->datatype, other->branchtag, other->next_sz);
-#endif
-        return 0;
-    }*/
-    // No successor
-    if (node->next_sz == 0) return 1;
-    else if (_visit_and_compare(node, other)) return 1;
-    else return 0;	    
-
-    /* // 1 successor */
-    /* if (node->next_sz == 1) { */
-    /*     return compare_st_node(node->next[0], other->next[0]); */
-    /* } */
-
-
-    /* // Disallow tagclash or multitag */
-    /* for (i=0; i<node->next_sz; ++i) { */
-    /*     tagcount = 0; */
-    /*     for (j=0; j<node->next_sz; ++j) { */
-    /*         if (node->next[i]->branchtag == other->next[j]->branchtag) { */
-    /*             ++tagcount; */
-    /*         } */
-    /*     } */
-    /*     if (tagcount != 1) return 0; */
-    /* } */
-
-    /* // >1 successors: find matching tag */
-    /* for (i=0; i<node->next_sz; ++i) { */
-    /*     for (j=0; j<node->next_sz; ++j) { */
-    /*         if (node->next[i]->branchtag == other->next[j]->branchtag) { */
-    /*             if (!compare_st_node(node->next[i], other->next[j])) return 0; */
-    /*             break; */
-    /*         } */
-    /*     } */
-    /* } */
-
-    /* return 1; */
+  // No successor
+  if (node->next_sz == 0) return 1;
+  else if (_visit_and_compare(node, other)) return 1;
+  else return 0;	    
 }
 
 
