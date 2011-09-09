@@ -1,0 +1,26 @@
+// Connection: Alice -> Bob -> Charlie
+//               \_____________/^
+
+protocol MPIteration {
+  participant Alice, Bob, Charlie;
+
+  // Alice -> {Bob, Charlie}
+  String from Alice to Bob;
+  String from Alice to Charlie;
+
+  // Decision happens at Alice
+  repeat @ Alice {
+    // Alice -> Bob -> Charlie
+    int from Alice to Bob;
+    int from Bob to Charlie;
+
+    // Charlie -> Bob -> Alice
+    int from Charlie to Bob;
+    int from Bob to Alice;
+
+
+    // Alice -> Bob -> Charlie
+    String from Alice to Bob;
+    String from Bob to Charlie;
+  }
+}

@@ -253,7 +253,7 @@ int _asyncmsg_compare_st_node(st_node *node, st_node *other)
         // SEND_NODE must not overtake RECV_NODE.
         //
 
-        for (j=0; j<search_bound; ++j) {
+        for (j=0; j<=search_bound; ++j) {
 
           // Find next available node in the same channel.
           if (visited[j] == 0 && strcmp(other->next[i]->role, node->next[j]->role) == 0) {
@@ -306,7 +306,7 @@ int _asyncmsg_compare_st_node(st_node *node, st_node *other)
   for (i=0; i<node->next_sz; ++i) {
     switch (visited[i]) {
       case 0: // Not visited.
-        fprintf(stderr, "Some nodes are not mark as visited.\n");
+        fprintf(stderr, "Some nodes are not mark as visited at %d.\n", i);
         assert(1 /*This can't be correct because node and other have the same next_sz*/);
         return 0;
         break;

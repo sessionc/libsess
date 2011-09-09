@@ -1,0 +1,7 @@
+protocol AsyncMsg @ Alice(role Bob) {
+	rec X {
+		int to Bob;
+		int from Bob;
+		X;
+	}
+}

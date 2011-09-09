@@ -1,0 +1,4 @@
+protocol Pipeline @ Charlie(role Alice, role Bob) {
+	int from Bob;
+	int to Alice;
+}

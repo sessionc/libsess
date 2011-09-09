@@ -1,0 +1,12 @@
+protocol Iteration {
+  participant Alice, Bob;
+
+  int from Alice to Bob;
+
+  repeat @ Alice {
+    int from Alice to Bob;
+    int from Bob to Alice;
+
+    String from Alice to Bob;
+  }
+}

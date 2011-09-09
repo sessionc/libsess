@@ -43,6 +43,7 @@ void visit_protocol_node(pANTLR3_BASE_TREE node)
 
   printf("Protocol %s @ %s\n", protocol_name, myrole_name);
 
+  // Initialise root node.
   root = malloc(sizeof(st_node));
   init_st_node(root, BEGIN_NODE, "", "");
 
@@ -574,14 +575,9 @@ st_node *parse(const char *filename)
     fprintf(stderr, "Error: Parser returned %d errors\n",
         parser->pParser->rec->state->errorCount);
   } else {
-    // We have an AST, so initialise ST-tree
-    // with BEGIN_NODE
 
     init_stack(&parents);
-
     visit_node(ast.tree);
-
-    print_st_node(root, 0);
   }
 
   parser->free(parser);

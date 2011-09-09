@@ -1,0 +1,5 @@
+protocol BasicSendRecv @ Charlie(role Alice, role Bob) {
+	string from Bob;
+	int to Alice;
+	int from Bob;
+}

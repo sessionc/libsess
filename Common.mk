@@ -17,7 +17,7 @@ RELEASE := -O3
 
 CC       := gcc
 MPICC    := mpicc
-CFLAGS   := -Wall -I$(INCLUDE_DIR) -m64 -fPIC $(DEBUG)
+CFLAGS   := -Wall -I$(INCLUDE_DIR) -m64 -fPIC
 LD_FLAGS := -L$(LIB_DIR) -lsess -lzmq -lantlr3c
 
 # Other options

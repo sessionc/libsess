@@ -1,0 +1,18 @@
+protocol MPIteration @ Alice {
+  participant Bob, Charlie;
+
+  // ME -> {Bob, Charlie}
+  String to Bob;
+  String to Charlie;
+
+  repeat @ Alice { // Decision happens at Alice
+    // ME -> Bob
+    int to Bob;
+    
+    // Bob -> ME
+    int from Bob;
+
+    // ME -> Bob
+    String to Bob;
+  }
+}

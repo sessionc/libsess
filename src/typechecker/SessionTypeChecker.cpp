@@ -126,17 +126,17 @@ namespace {
 
           llvm::outs() << "\n[Session Type Checker] "
                        << "Scribble description matches code\n\n";
-          print_st_node(root_, 0);
-          print_st_node(scribble_root_, 0);
 
         } else {
 
           llvm::outs() << "\n[Session Type Checker] "
                        << "Scribble description does NOT match code\n\n";
-          llvm::outs() << "Session dump [AST] \n";
+
+          // For diagnosis.
+          llvm::outs() << "[AST] ST tree:\n";
           print_st_node(root_, 0);
 
-          llvm::outs() << "Session dump [Scribble] \n";
+          llvm::outs() << "[Scribble] ST tree:\n";
           print_st_node(scribble_root_, 0);
 
         }
