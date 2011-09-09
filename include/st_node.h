@@ -35,7 +35,9 @@ struct __st_node {
     struct __st_node **next;
 };
 
+
 typedef struct __st_node st_node; ///< Alias to the struct.
+
 
 /**
  * \brief Convenient function to initialise session type node.
@@ -74,15 +76,14 @@ st_node *append_st_node(st_node *node, st_node *next);
  * \brief Convenient function to delete the last child node of given node
  *
  * @param[in] node Parent node.
- * @param[in] next New child node.
  *
- * \returns input st_node pointer
+ * \returns modified node.
  */
 st_node *delete_last_st_node(st_node *node);
 
 
 /**
- * \brief Print the given node in a debugging format.
+ * \brief Pretty-print the given node in a debugging format.
  *
  * @param[in] node   Node to print.
  * @param[in] indent Indentation (number of spaces).
@@ -100,13 +101,11 @@ void print_st_node(st_node *node, unsigned indent);
  */
 int compare_st_node(st_node *node, st_node *other);
 
+
 /**
  * \brief Normalise AST tree. 
- * 1. Remove empty branch node 
- * 2. Convert BRANCH-->BRANCH--> OUTBRANCH...  ===>> BRANCH-->OUTBRANCH...
  *
- * @param[in] Root of tree  
- * 
+ * @param[in,out] root Root of tree to normalise.
  */
 void normalise(st_node *root);
 

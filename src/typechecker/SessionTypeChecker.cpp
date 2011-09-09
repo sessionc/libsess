@@ -124,15 +124,15 @@ namespace {
         // Type-checking.
         if (compare_st_node(root_, scribble_root_)) {
 
-          llvm::outs() << "[Session Type Checker] "
-                       << "Scribble description matches code\n";
+          llvm::outs() << "\n[Session Type Checker] "
+                       << "Scribble description matches code\n\n";
           print_st_node(root_, 0);
           print_st_node(scribble_root_, 0);
 
         } else {
 
-          llvm::outs() << "[Session Type Checker] "
-                       << "Scribble description does NOT match code\n";
+          llvm::outs() << "\n[Session Type Checker] "
+                       << "Scribble description does NOT match code\n\n";
           llvm::outs() << "Session dump [AST] \n";
           print_st_node(root_, 0);
 
@@ -299,6 +299,19 @@ namespace {
               if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
                 if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
                   role = VD->getNameAsString();
+                }
+              }
+            }
+
+
+            if (strcmp(datatype.c_str(), "string") == 0) {
+              Expr *value = callExpr->getArg(1);
+              if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(value)) {
+                if (ImplicitCastExpr *ICE2 = dyn_cast<ImplicitCastExpr>(ICE->getSubExpr())) {
+                  if (StringLiteral *SL = dyn_cast<StringLiteral>(ICE2->getSubExpr())) {
+                    std::string str_lit = SL->getString();
+                    llvm::outs() << "[StringLiteral " << str_lit << "]\n";
+                  }
                 }
               }
             }

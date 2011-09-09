@@ -29,6 +29,9 @@ const char *node_type[] = {
 
 stackli *stack, *_stack;
 
+int _asyncmsg_compare_st_node(st_node *node, st_node *other);
+int _compare_st_node(st_node *node, st_node *other);
+
 
 /**
  * Sets up node mechanically using given parameters.
@@ -50,7 +53,6 @@ st_node *init_st_node(st_node *node, unsigned type,
 
 /**
  * Free the st_node tree by walking the tree and reference counting.
- *
  */
 void free_st_node(st_node *node)
 {
@@ -69,7 +71,6 @@ void free_st_node(st_node *node)
  * Grow the tree by changing the next pointers.
  * If the node already has successors, convert the node to a multi-successor
  * node but will warn if the new successor does not have a unique branchtag.
- *
  */
 st_node *append_st_node(st_node *node, st_node *next)
 {
@@ -84,37 +85,28 @@ st_node *append_st_node(st_node *node, st_node *next)
       
   node->next[node->next_sz-1] = next;
 
-  /* if (next->type == BRANCH_NODE && strcmp(next->branchtag, "Nil") == 0) */
-  /*     fprintf(stderr, "Warn: Branch node w/o branch tag\n"); */
-
-  /* for (i=0; i<node->next_sz-1; ++i) { */
-  /*     if (strcmp(node->next[i]->branchtag, next->branchtag) == 0) */
-  /*         fprintf(stderr, "Warn: branchtag clash\n"); */
-  /* } */
-
   return node; // For chaining
 }
 
 
 /**
- *
- *
+ * Delete the last child node.
  */
 st_node *delete_last_st_node(st_node *node)
 {
+  st_node *tmp;
   if(node->next_sz > 0) {
-    st_node *tmp;
     tmp = node->next[node->next_sz-1];
     node->next_sz--;
     free_st_node(tmp);
   }
+
   return node;
 }
 
 
 /**
- *
- *
+ * Pretty-print the ST tree rooted at node.
  */
 void print_st_node(st_node *node, unsigned indent)
 {
@@ -133,54 +125,208 @@ void print_st_node(st_node *node, unsigned indent)
 }
 
 
-/// Compares 1 node only (ignoring successors)
+/**
+ * Recursive step of compare function.
+ */
 int _compare_st_node(st_node *node, st_node *other)
 {
-  return (node->type == other->type
-          && (strcmp(node->role, other->role) == 0)
-          && (strcmp(node->datatype, other->datatype) == 0)
-          && (strcmp(node->branchtag, other->branchtag) == 0)
-          && node->next_sz == other->next_sz) ||
+  int i;
+  int cmp_result = 0;
 
-          // Special case: BEGIN_NODE, stores role name in datatype
-          (node->type == BEGIN_NODE
-          && (strcmp(node->datatype, other->datatype) == 0)
-          && node->next_sz == other->next_sz);
+  // Corrupted nodes/different ST tree.
+  if ((node == NULL && other != NULL) || (node != NULL && other == NULL)) {
+    return 0;
+  }
+
+  cmp_result = (node->type == other->type
+                && (strcmp(node->role, other->role) == 0)
+                && (strcmp(node->datatype, other->datatype) == 0)
+                && (strcmp(node->branchtag, other->branchtag) == 0)
+                && node->next_sz == other->next_sz);
+
+  if (cmp_result) { // Node is identical.
+
+    if (node->type == RECUR_NODE) {
+
+      cmp_result &= _asyncmsg_compare_st_node(node, other);
+
+    } else { // Check child nodes (normal).
+
+      push(stack, node);
+      push(_stack, other);
+
+      for (i=0; i<node->next_sz; ++i) {
+        cmp_result &= _compare_st_node(node->next[i], other->next[i]);
+      }
+
+      pop(stack);
+      pop(_stack);
+
+    }
+
+  } else { // Node is NOT identical.
+
+    fprintf(stderr, "Type checking failed at this node:\n");
+    print_st_node(node, 0);
+    fprintf(stderr, "----------\nAnd this node:\n");
+    print_st_node(other, 0);
+
+  }
+
+  return cmp_result;
 }
 
 
-/**
- * Compare two session type graph (successor > 0)
- * 
- */
-int _visit_and_compare(st_node *root, st_node *other)
+int _asyncmsg_compare_st_node(st_node *node, st_node *other)
 {
-  int i;
-  st_node *node;
-  st_node *other_node;
-  push(stack, root);
-  push(_stack, other);
+  int i, j;
+  int cmp_result = 0;
+  int visited[node->next_sz];
 
-  while (!isEmpty(stack) || !isEmpty(_stack)) {
-    top(stack, &node);
-    top(_stack, &other_node);
-    pop(stack);
-    pop(_stack);
+  assert(node->type == RECUR_NODE && other->type == RECUR_NODE);
 
-    if(!_compare_st_node(node, other_node))
-      return 0;
+  // Set bounds for permuted send/recv nodes search space.
+  int search_bound = 0;
 
-    for (i=node->next_sz-1; 0<=i; --i) {
-      push(stack, node->next[i]);
-    }
-    for (i=other_node->next_sz-1; 0<=i; --i) {
-      push(_stack, other_node->next[i]);
+  for (i=0; i<node->next_sz; ++i) {
+    visited[i] = 0;
+  }
+
+  // Run through all nodes once.
+  for (i=0; i<node->next_sz; ++i) {
+    if (node->next[i]->type == SEND_NODE || node->next[i]->type == RECV_NODE) {
+
+      // Search for the last permutable node.
+      search_bound = node->next_sz-1;
+      for (j=i+1; j<node->next_sz; ++j) {
+        if (node->next[j]->type != SEND_NODE && node->next[j]->type != RECV_NODE) {
+          search_bound = j;
+        }
+      }
+
+      // Start node: i, end node: search_bound - 1.
+
+      if (other->next[i]->type == RECV_NODE) {
+
+        //
+        // RECV_NODE may overtake SEND_NODE.
+        //
+
+        for (j=0; j<=search_bound; ++j) {
+
+          // Find next available node in the same channel.
+          if (visited[j] == 0 && strcmp(other->next[i]->role, node->next[j]->role) == 0) {
+
+            // Only look for RECV_NODE.
+            if (node->next[j]->type == RECV_NODE) {
+
+              if (strcmp(node->next[j]->datatype, other->next[i]->datatype) == 0
+                  && (strcmp(node->next[j]->branchtag, other->next[i]->branchtag) == 0)
+                  && node->next[j]->next_sz == other->next[i]->next_sz) {
+
+                // RECV_NODE found.
+                visited[j] = 1;
+                break; // Next node.
+
+              } else {
+
+                // RECV_NODE found but type error.
+                fprintf(stderr, "No matching RECV_NODE for REC child %d\n", i);
+                return 0;
+
+              }
+
+            } // RECV_NODE
+          } // next node in same channel.
+
+          if (j == search_bound) {
+            // No RECV_NODE found.
+            fprintf(stderr, "No RECV_NODE found.\n");
+            return 0;
+          }
+
+        }
+
+      } else { // other->next[i]->type == SEND_NODE
+
+        //
+        // SEND_NODE must not overtake RECV_NODE.
+        //
+
+        for (j=0; j<search_bound; ++j) {
+
+          // Find next available node in the same channel.
+          if (visited[j] == 0 && strcmp(other->next[i]->role, node->next[j]->role) == 0) {
+
+            // Check for identical SEND_NODE.
+            if (node->next[j]->type == SEND_NODE
+                && (strcmp(node->next[j]->datatype, other->next[i]->datatype) == 0)
+                && (strcmp(node->next[j]->branchtag, other->next[i]->branchtag) == 0)
+                && node->next[j]->next_sz == other->next[i]->next_sz) {
+
+              // SEND_NODE found.
+              visited[j] = 1;
+              break; // Next node.
+
+            } else {
+
+              // SEND_NODE found but type error.
+              fprintf(stderr, "No matching SEND_NODE for REC child %d\n", i);
+              return 0;
+
+            }
+
+          } // next node in same channel.
+
+          if (j == search_bound) {
+            // No SEND_NODE found.
+            fprintf(stderr, "No SEND_NODE found.\n");
+            return 0;
+          }
+
+        }
+
+      } // other->next[i]->type == SEND_NODE | RECV_NODE.
+
+    } else { // Not SEND_NODE/RECV_NODE.
+
+      // TODO: Make sure other->next[i] and node->next[i] are identical.
+
+      // Mark for checking later.
+      visited[i] = 2;
+
     }
   }
-  free_stack(stack);
-  free_stack(_stack);
 
-  return 1;
+
+  // Passed async message optimisation type-checking.
+  cmp_result = 1;
+
+  // Check non SEND_NODE/RECV_NODE.
+  for (i=0; i<node->next_sz; ++i) {
+    switch (visited[i]) {
+      case 0: // Not visited.
+        fprintf(stderr, "Some nodes are not mark as visited.\n");
+        assert(1 /*This can't be correct because node and other have the same next_sz*/);
+        return 0;
+        break;
+
+      case 1: // Visited.
+        break;
+
+      case 2: // Marked for 'normal' type-checking.
+        push(stack, node);
+        push(_stack, other);
+
+        cmp_result &= _compare_st_node(node->next[i], other->next[i]);
+
+        pop(stack);
+        pop(_stack);
+        break;
+    }
+  }
+
+  return cmp_result;
 }
 
 
@@ -190,92 +336,137 @@ int _visit_and_compare(st_node *root, st_node *other)
  */
 int compare_st_node(st_node *node, st_node *other)
 {
-  init_stack(&stack);
-  init_stack(&_stack);
+  int i;
+  int cmp_result = 0;
 
   if ((node == NULL && other != NULL) || (node != NULL && other == NULL)) {
     fprintf(stderr, "One of the st_node tree is NULL.\n");
     return 0;
   }
 
-  // No successor
-  if (node->next_sz == 0) return 1;
-  else if (_visit_and_compare(node, other)) return 1;
-  else return 0;	    
+  // Check if both are root node.
+  if (node->type == BEGIN_NODE && other->type == BEGIN_NODE) {
+
+    cmp_result = 1;
+    if (node->next_sz == other->next_sz) {
+
+      init_stack(&stack);
+      init_stack(&_stack);
+
+      // Root nodes.
+      push(stack, node);
+      push(_stack, other);
+
+      // Check the child nodes.
+      for (i=0; i<node->next_sz; ++i) {
+        cmp_result &= _compare_st_node(node->next[i], other->next[i]);
+
+        if (!cmp_result) {
+          fprintf(stderr, "Type checking failed at this node:\n");
+          print_st_node(node->next[i], 0);
+          fprintf(stderr, "----------\nAnd this node:\n");
+          print_st_node(other->next[i], 0);
+        }
+      }
+
+      // Root nodes.
+      pop(stack);
+      pop(_stack);
+
+      free_stack(stack);
+      free_stack(_stack);
+    } else {
+
+      // Different next_sz.
+      cmp_result = 0;
+    }
+
+    return cmp_result;
+  }
+
+  // Not BEGIN_NODE.
+  return 0;
 }
 
-
 /**
- * Normalise tree by 
+ * Normalise tree.
+ * Remove empty or meaningless nodes
+ * and get a canonical ST tree from given root.
  *
+ * 1. Remove empty branch node 
+ * 2. Convert BRANCH-->BRANCH--> OUTBRANCH...  ===>> BRANCH-->OUTBRANCH...
  */
-void normalise(st_node *root) {
-    if(root) {
-        unsigned i, j;
-        st_node *node = root;
-        st_node *child;
+void normalise(st_node *root)
+{
+  unsigned i, j;
+  st_node *node = root;
+  st_node *child;
 
-        if(node->type == 3) {
-        
-            /* printf(" next_sz = %i\n", root->next_sz); */
-            for (i=0; i<node->next_sz; ++i) {
-                /* printf("traverse children\n"); */
-                if(node->next[i]) {
-                    if(node->next[i]->type == 3) { //BRANCH_NODE LABEL
-                        /* printf(" child is BRANCH NODE\n");  */
-                        child = node->next[i];
-                        for (j=0; j<child->next_sz; ++j) {
-                            shiftElementsRight(node, j+1);
-                            insert_st_node_at(node, child->next[j], j+1);
-                            /* append_st_node(node, child->next[j]); */
-                            /* print_st_node(child, 2); */
-                            child->next[j] = NULL;
-                            shiftElementsLeft(child, j);
-                            j--; 
-                        }
-                    }
-                }
-            }
-        } else {
+  if (root) {
 
-            for (i=0; i<node->next_sz; ++i) {
-                /* printf("recursion \n =============================== \n"); */
-                normalise(node->next[i]);
+    // Branch node normalisation.
+    if (node->type == BRANCH_NODE) {
+
+      for (i=0; i<node->next_sz; ++i) {
+        if (node->next[i]) {
+          // BRANCH_NODE -> BRANCH_NODE (w/o intermediate OUTBRANCH/INBRANCH).
+          if (node->next[i]->type == BRANCH_NODE) {
+            child = node->next[i];
+            for (j=0; j<child->next_sz; ++j) {
+              // Move st_node
+              //  from node->next[i]->next[j]
+              //  to   node->next[j+1]
+               shiftElementsRight(node, j+1);
+              insert_st_node_at(node, child->next[j], j+1);
+              child->next[j] = NULL;
+              shiftElementsLeft(child, j);
+              --j; 
             }
+          }
         }
-        
+      }
+
+    } else { // Not BRANCH_NODE.
+
+      for (i=0; i<node->next_sz; ++i) {
+        normalise(node->next[i]);
+      }
+
     }
+        
+  }
+
 }
 
 
 void shiftElementsLeft(st_node *node, int index)
 {
-    int i;
-    for(i=index; i<node->next_sz-1; i++) {
-        node->next[i] = node->next[i+1];
-    }
-    node->next[node->next_sz-1] = NULL;
-    node->next_sz--;
+  int i;
+  for(i=index; i<node->next_sz-1; ++i) {
+      node->next[i] = node->next[i+1];
+  }
+  node->next[node->next_sz-1] = NULL;
+  node->next_sz--;
 }
 
 
 void shiftElementsRight(st_node *node, int index)
 {
-    int i;
-    node->next_sz++;
-    node->next = (st_node **)realloc(node->next,
-                                     node->next_sz * sizeof(st_node *));
-    for(i=node->next_sz-1; i>index; i--) {
-        node->next[i] = node->next[i-1];
-    }
-    node->next[index] = NULL;
+  int i;
+  node->next_sz++;
+  node->next = (st_node **)realloc(node->next,
+                                   node->next_sz * sizeof(st_node *));
+  for(i=node->next_sz-1; i>index; --i) {
+      node->next[i] = node->next[i-1];
+  }
+  node->next[index] = NULL;
 }
 
 
 st_node *insert_st_node_at(st_node *node, st_node *next, int index)
 {
-    node->next[index] = next;
-    return node;
+  node->next[index] = next;
+  return node;
 }
 
 

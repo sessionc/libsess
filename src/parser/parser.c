@@ -50,8 +50,9 @@ void visit_protocol_node(pANTLR3_BASE_TREE node)
   push(parents, root);
 
 #ifdef __DEBUG__
-    fprintf(stderr, "visit_node: root st_node <%p role=%s type=%s>\n",
-        root, protocol_name, myrole_name);
+  fprintf(stderr, "visit_node: root st_node <%p role=%s type=%s>\n",
+          root, protocol_name, myrole_name);
+
 #endif
 
   for (i=3; i<child_count; ++i) {
