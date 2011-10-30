@@ -11,9 +11,53 @@
 
 typedef void role; ///< Type representing a participant/role
 
+typedef struct {
+  char *role_name;
+  role *role_ptr;
+  char uri[6+255+7]; // tcp:// + FQDN + :port + \0
+} endpoint_t;
+
+struct session_t {
+  endpoint_t **endpoints; // Array of endpoint pointers.
+  unsigned endpoints_count;
+
+  role *(*get_role)(struct session_t *, char *); // lookup function.
+  void *ctx; // Extra data.
+};
+typedef struct session_t session;
+
+
+/**
+ * \brief Create and join a session.
+ *
+ * @param[in,out] argc     Command line argument count
+ * @param[in,out] argv     Command line argument list
+ * @param[out]    s        Pointer to session varible to create
+ * @param[in]     scribble Endpoint Scribble file path for this session
+ *                         (Must be constant string)
+ */
+void join_session(int *argc, char ***argv, session **s, const char *scribble);
+
+
+/**
+ * \brief Dump content of an established session.
+ *
+ * @param[in] s Session to dump
+ */
+void dump_session(const session *s);
+
+/**
+ * \brief Terminate a session.
+ *
+ * @param[in] s Session to terminate
+ */
+void end_session(session *s);
+
 
 /**
  * \brief Session initiation for the server-side of the communication.
+ * \deprecated 
+ *  Use join_session and end_session instead of explicit channel creation.
  *
  * @param[in] ctx      ZeroMQ context from a zmq_init()
  * @param[in] type     ZeroMQ connection type (eg. ZMQ_PAIR)
@@ -29,6 +73,8 @@ role *sess_server(void *ctx, int type, const char *uri, const char *scribble);
 
 /**
  * \brief Session initiation for the client-side of the communication.
+ * \deprecated 
+ *  Use join_session and end_session instead of explicit channel creation.
  *
  * @param[in] ctx      ZeroMQ context from a zmq_init()
  * @param[in] type     ZeroMQ connection type (eg. ZMQ_PAIR)

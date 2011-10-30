@@ -5,7 +5,7 @@
 ROOT := ../..
 include $(ROOT)/Common.mk
 
-OBJS = $(addprefix $(BUILD_DIR)/,st_node.o parser.o ScribbleProtocolParser.o ScribbleProtocolLexer.o libsess.o)
+OBJS = $(addprefix $(BUILD_DIR)/,st_node.o parser.o stack.o ScribbleProtocolParser.o ScribbleProtocolLexer.o libsess.o connmgr.o)
 
 all: libsess
 
@@ -23,6 +23,9 @@ $(BUILD_DIR)/%.a: $(OBJS)
 $(BUILD_DIR)/st_node.o:
 	$(MAKE) --directory=$(SRC_DIR)/common
 
+$(BUILD_DIR)/stack.o:
+	$(MAKE) --directory=$(SRC_DIR)/common
+
 $(BUILD_DIR)/parser.o:
 	$(MAKE) --directory=$(SRC_DIR)/parser
 
@@ -31,6 +34,9 @@ $(BUILD_DIR)/ScribbleProtocolParser.o:
 
 $(BUILD_DIR)/ScribbleProtocolLexer.o:
 	$(MAKE) --directory=$(SRC_DIR)/parser
+
+$(BUILD_DIR)/connmgr.o:
+	$(MAKE) --directory=$(SRC_DIR)/connmgr
 
 $(BUILD_DIR)/libsess.o: libsess.c
 	$(CC) $(CFLAGS) \

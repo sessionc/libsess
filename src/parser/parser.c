@@ -20,9 +20,11 @@
 #include "st_node.h"
 #include "stack.h"
 
-
+// XXX This should not be global!!
 st_node *root;
 stackli *parents;
+char **roles_table = NULL;
+int roles_count = 0;
 
 
 void visit_protocol_node(pANTLR3_BASE_TREE node)
@@ -30,7 +32,7 @@ void visit_protocol_node(pANTLR3_BASE_TREE node)
   pANTLR3_BASE_TREE tmp_node;
 
   char *protocol_name;
-  char *myrole_name;
+  char *myrole_name = 0;
 
   int i;
   int child_count = node->getChildCount(node);
@@ -38,25 +40,36 @@ void visit_protocol_node(pANTLR3_BASE_TREE node)
   tmp_node = node->getChild(node, 0);
   protocol_name = (char *)tmp_node->getText(tmp_node)->chars;
 
-  tmp_node = node->getChild(node, 2);
-  myrole_name = (char *)tmp_node->getText(tmp_node)->chars;
+  tmp_node = node->getChild(node, 1);
+  if (strcmp((const char *)tmp_node->getText(tmp_node)->chars, "@") == 0) {
 
-  printf("Protocol %s @ %s\n", protocol_name, myrole_name);
+    // Endpoint.
+    tmp_node = node->getChild(node, 2);
+    myrole_name = (char *)tmp_node->getText(tmp_node)->chars;
+
+    printf("Protocol %s @ %s\n", protocol_name, myrole_name);
+    i = 3;
+  } else {
+    // Global.
+    printf("Global Protocol %s\n", protocol_name);
+    i = 0;
+  }
+
 
   // Initialise root node.
   root = malloc(sizeof(st_node));
-  init_st_node(root, BEGIN_NODE, "", "");
+  init_st_node(root, BEGIN_NODE, myrole_name == NULL? "" : myrole_name, "");
 
   assert(isEmpty(parents));
   push(parents, root);
 
 #ifdef __DEBUG__
   fprintf(stderr, "visit_node: root st_node <%p role=%s type=%s>\n",
-          root, protocol_name, myrole_name);
+          root, protocol_name, myrole_name ? myrole_name : 0);
 
 #endif
 
-  for (i=3; i<child_count; ++i) {
+  for (/*1 if global, 3 if endpoint*/; i<child_count; ++i) {
     tmp_node = node->getChild(node, i);
     visit_node(tmp_node);
   }
@@ -69,12 +82,18 @@ void visit_role_decl(pANTLR3_BASE_TREE node)
 
   char *role_name;
 
+  if (roles_table == NULL) return;
+
   tmp_node = node->getChild(node, 0);
   role_name = (char *)tmp_node->getText(tmp_node)->chars;
 
+  roles_table[roles_count] = (char *)malloc(strlen(role_name));
+  strcpy(roles_table[roles_count], role_name);
 #ifdef __DEBUG__
-    fprintf(stderr, "role: %s\n", role_name);
+    fprintf(stderr, "role[%d]: %s\n", roles_count, role_name);
 #endif
+
+  roles_count++;
 }
 
 
@@ -594,3 +613,21 @@ st_node *parse(const char *filename)
 
   return root;
 }
+
+int parse_roles(const char *filename, char *roles[])
+{
+  roles_table = roles;
+  parse(filename);
+
+  return roles_count;
+}
+
+void parse_rolename(const char *filename, char **rolename)
+{
+  parse(filename);
+  if (root->type == BEGIN_NODE) {
+    *rolename = malloc(sizeof(char) * (strlen(root->role)+1));
+    strcpy(*rolename, root->role);
+  }
+}
+

@@ -18,6 +18,7 @@
 
 #include <libsess.h>
 
+#include "connmgr.h"
 #include "parser.h"
 #include "st_node.h"
 
@@ -31,6 +32,168 @@
 void _dealloc(void *data, void *hint)
 {
   free(data);
+}
+
+
+/**
+ * Helper function to lookup a role in a session.
+ */
+role *find_role_in_session(session *s, char *role_name)
+{
+  int i;
+  for (i=0; i<s->endpoints_count; ++i) {
+    if (strcmp(s->endpoints[i]->role_name, role_name) == 0) {
+      return s->endpoints[i]->role_ptr;
+    }
+  }
+  fprintf(stderr, "%s: Role %s not found in session.\n",
+                    __FUNCTION__, role_name);
+#ifdef __DEBUG__
+  dump_session(s);
+#endif
+  return NULL;
+}
+
+
+/**
+ * Session initiation, involves three steps:
+ *  (1) Load configuration from filesystem supplied as command line argument
+ *  (2) Load endpoint scribble and extract relevant configuration
+ *  (3) Create a session variable with connected endpoints
+ */
+void join_session(int *argc, char ***argv, session **s, const char *scribble)
+{
+  conn_rec *conns; // Array of connection records
+  int nr_of_conns; // Number of connections
+  int nr_of_roles; // Number of roles
+
+  int conn_idx;
+  int endpoint_idx; 
+
+  *s = (session *)malloc(sizeof(session));
+  session *sess = *s; // Alias
+
+  // TODO: Extract configuration from command line arguments.
+
+  char *config_file = "conn.conf";
+  nr_of_conns = connmgr_read(config_file, &conns, &nr_of_roles);
+
+  // Extract role_name from Scribble
+  char *role_name;
+  parse_rolename(scribble, &role_name);
+
+  sess->endpoints = malloc(sizeof(endpoint_t *) * (nr_of_roles-1));
+
+  sess->ctx = zmq_init(1);
+
+  for (endpoint_idx=0, conn_idx=0; conn_idx<nr_of_conns; ++conn_idx) {
+    if (strcmp(conns[conn_idx].from, role_name) == 0) { // As a client.
+      sess->endpoints[endpoint_idx] = malloc(sizeof(endpoint_t));
+      sess->endpoints[endpoint_idx]->role_name
+          = malloc(sizeof(char) * (strlen(conns[conn_idx].to)+1));
+      strcpy(sess->endpoints[endpoint_idx]->role_name, conns[conn_idx].to);
+
+      sprintf(sess->endpoints[endpoint_idx]->uri,
+                "tcp://%s:%u",
+                conns[conn_idx].host,
+                conns[conn_idx].port);
+#ifdef __DEBUG__
+      fprintf(stderr, "Connection (as client) %s -> %s is %s\n",
+                        conns[conn_idx].from,
+                        conns[conn_idx].to,
+                        sess->endpoints[endpoint_idx]->uri);
+#endif
+      if ((sess->endpoints[endpoint_idx]->role_ptr = zmq_socket(sess->ctx, ZMQ_PAIR)) == NULL) {
+        perror("zmq_socket");
+      }
+      if (zmq_connect(sess->endpoints[endpoint_idx]->role_ptr, sess->endpoints[endpoint_idx]->uri) != 0) {
+        perror("zmq_connect");
+      }
+      sess->endpoints_count++;
+      endpoint_idx++;
+    }
+
+    if (strcmp(conns[conn_idx].to, role_name) == 0) { // As a server.
+      sess->endpoints[endpoint_idx] = malloc(sizeof(endpoint_t));
+      sess->endpoints[endpoint_idx]->role_name
+          = malloc(sizeof(char) * (strlen(conns[conn_idx].from)+1));
+      strcpy(sess->endpoints[endpoint_idx]->role_name, conns[conn_idx].from);
+
+      sprintf(sess->endpoints[endpoint_idx]->uri, "tcp://*:%u",conns[conn_idx].port);
+#ifdef __DEBUG__
+      fprintf(stderr, "Connection (as server) %s -> %s is %s\n", conns[conn_idx].from, conns[conn_idx].to, sess->endpoints[endpoint_idx]->uri);
+#endif
+      if ((sess->endpoints[endpoint_idx]->role_ptr = zmq_socket(sess->ctx, ZMQ_PAIR)) == NULL) {
+        perror("zmq_socket");
+      }
+      if (zmq_bind(sess->endpoints[endpoint_idx]->role_ptr, sess->endpoints[endpoint_idx]->uri) != 0) {
+        perror("zmq_bind");
+      }
+      sess->endpoints_count++;
+      endpoint_idx++;
+    }
+  }
+
+  sess->get_role = &find_role_in_session;
+
+  // TODO Implicit barrier synchronisation here.
+#ifdef __DEBUG__
+  fprintf(stderr, "Created session <%p> with %u endpoints\n", *s, (*s)->endpoints_count);
+#endif
+}
+
+
+/**
+ * Dump the content of a session in a human readable form for debugging.
+ */
+void dump_session(const session *s)
+{
+  unsigned endpoint_idx;
+  printf("---- Dumping session <%p> ---- \n", s);
+  printf("Number of endpoints: %u\n", s->endpoints_count);
+  for (endpoint_idx=0; endpoint_idx<s->endpoints_count; ++endpoint_idx) {
+    printf("Endpoint %d { role_name: %s, role_ptr: <%p>, uri: %s }\n",
+              endpoint_idx,
+              s->endpoints[endpoint_idx]->role_name,
+              s->endpoints[endpoint_idx]->role_ptr,
+              s->endpoints[endpoint_idx]->uri
+    );
+  }
+  printf("ZMQ Context: %p\n", s->ctx);
+  printf("---- End dumping session <%p> ----\n", s);
+}
+
+
+
+/**
+ *
+ *
+ */
+void end_session(session *s)
+{
+  // TODO Do some extra checking
+  //      eg. make sure session is finished.
+  //     
+  unsigned endpoint_idx;
+  unsigned endpoints_count = s->endpoints_count;
+
+  for (endpoint_idx=endpoints_count-1; endpoint_idx>0; --endpoint_idx) {
+#ifdef __DEBUG__
+  fprintf(stderr, " -- Disconnecting endpoint %d\n", endpoint_idx);
+#endif
+    if (zmq_close(s->endpoints[endpoint_idx]->role_ptr) != 0) {
+      perror("zmq_close");
+    }
+    free(s->endpoints[endpoint_idx]);
+  }
+  free(s->endpoints);
+
+  zmq_term(s->ctx);
+  s->get_role = NULL;
+  free(s);
+#ifdef __DEBUG__
+  fprintf(stderr, "Terminated session <%p>\n", s);
+#endif
 }
 
 

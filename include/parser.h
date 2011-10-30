@@ -32,4 +32,8 @@ void visit_outwhile_node(pANTLR3_BASE_TREE node);
  */
 st_node *parse(const char *filename);
 
+int parse_roles(const char *filename, char *roles[]);
+
+void parse_rolename(const char *filename, char **rolename);
+
 #endif // __PARSER_H__
