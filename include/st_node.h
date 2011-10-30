@@ -109,33 +109,11 @@ int compare_st_node(st_node *node, st_node *other);
  */
 void normalise(st_node *root);
 
-/**
- * \brief Shift elements Started from given index one position left. 
- * 
- * @param[in] st_node  
- * 
- */
-void shiftElementsLeft(st_node *node, int index);
+
+// ---------- Normalisation helpers ----------
 
 
-/**
- * \brief Shift elements Started from given index one position right. 
- * 
- * @param[in] st_node  
- * 
- */
-void shiftElementsRight(st_node *node, int index);
-
-
-/**
- * \brief Convenient function to insert a node  at specified position.
- *
- * @param[in] node Parent node.
- * @param[in] next New child node.
- * @param[in] index to insert
- * \returns extended node tree.
- */
-st_node *insert_st_node_at(st_node *node, st_node *next, int index);
+void remove_nested_branch_node(st_node *node);
 
 
 /**
@@ -144,17 +122,35 @@ st_node *insert_st_node_at(st_node *node, st_node *next, int index);
  * @param[in,out] st_node  
  * 
  */
-void remove_empty_branch_node(st_node *root);
+void remove_leaf_branch_node(st_node *node);
 
-// int cmp_branchtag(const void *a, const void *b);
 
 /**
  * \brief Sort branches by their string branchtag.
  *
  * @param[in,out] st_node
- *
  */
-void sort_branches(st_node *root);
+void sort_branch_nodes(st_node *node);
+
+
+/**
+ * \brief Convenient function to insert a node at a specified position.
+ *
+ * @param[in,out] node Parent node.
+ * @param[in] newnode New child node.
+ * @param[in] index Node index to insert to.
+ */
+void insert_st_node_at(st_node *node, st_node *next, int index);
+
+
+/**
+ * \brief Convenient function to remove a node ifrom a specified position.
+ *
+ * @param[in,out] node Parent node.
+ * @param[in] index Node index to remove.
+ */
+void remove_st_node_at(st_node *node, int index);
+
 
 #ifdef __cplusplus
 }

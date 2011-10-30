@@ -118,8 +118,8 @@ namespace {
 
         // Normalise.
         normalise(root_);
-        remove_empty_branch_node(root_);
-        sort_branches(root_);
+        // remove_empty_branch_node(root_);
+        // sort_branches(root_);
 
         // Type-checking.
         if (compare_st_node(root_, scribble_root_)) {

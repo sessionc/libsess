@@ -397,7 +397,7 @@ int compare_st_node(st_node *node, st_node *other)
  * 2. Convert BRANCH-->BRANCH--> OUTBRANCH...  ===>> BRANCH-->OUTBRANCH...
  */
 void normalise(st_node *root)
-{
+{/*
   unsigned i, j;
   st_node *node = root;
   st_node *child;
@@ -412,15 +412,12 @@ void normalise(st_node *root)
           // BRANCH_NODE -> BRANCH_NODE (w/o intermediate OUTBRANCH/INBRANCH).
           if (node->next[i]->type == BRANCH_NODE) {
             child = node->next[i];
+
+            // Move nodes in child node up to parent.
             for (j=0; j<child->next_sz; ++j) {
-              // Move st_node
-              //  from node->next[i]->next[j]
-              //  to   node->next[j+1]
-               shiftElementsRight(node, j+1);
-              insert_st_node_at(node, child->next[j], j+1);
+              shiftElementsRight(node, (i+1)+j);
+              insert_st_node_at(node, child->next[j], (i+1)+j);
               child->next[j] = NULL;
-              shiftElementsLeft(child, j);
-              --j; 
             }
           }
         }
@@ -436,71 +433,129 @@ void normalise(st_node *root)
         
   }
 
+*/
+  remove_nested_branch_node(root);
+  remove_leaf_branch_node(root);
+  sort_branch_nodes(root);
 }
-
-
-void shiftElementsLeft(st_node *node, int index)
-{
-  int i;
-  for(i=index; i<node->next_sz-1; ++i) {
-      node->next[i] = node->next[i+1];
-  }
-  node->next[node->next_sz-1] = NULL;
-  node->next_sz--;
-}
-
-
-void shiftElementsRight(st_node *node, int index)
-{
-  int i;
-  node->next_sz++;
-  node->next = (st_node **)realloc(node->next,
-                                   node->next_sz * sizeof(st_node *));
-  for(i=node->next_sz-1; i>index; --i) {
-      node->next[i] = node->next[i-1];
-  }
-  node->next[index] = NULL;
-}
-
-
-st_node *insert_st_node_at(st_node *node, st_node *next, int index)
-{
-  node->next[index] = next;
-  return node;
-}
-
 
 /**
- * Walk the tree and remove empty branches.
- *
+ * Remove nested BRANCH_NODEs that do not
+ * have OUTBRANCH child nodes.
  */
-void remove_empty_branch_node(st_node *root)
+void remove_nested_branch_node(st_node *node)
 {
-  unsigned i;
+  int i, j;
+  st_node *child;
 
-  if (root) {
-    st_node *node = root;
-    st_node *child;
-    /* printf("test1     %i\n", node->next_sz); */
+  if (!node) {
+    fprintf(stderr, "ERROR %s: node is not a valid st_node.\n", __FUNCTION__);
+    return;
+  }
+
+  // Branch node.
+  if (node->type == BRANCH_NODE) {
+
+    // Look at all children.
     for (i=0; i<node->next_sz; ++i) {
-      //printf("test1     %i\n", node->next_sz);
-      if(node->next[i]->type == BRANCH_NODE) { //BRANCH_NODE LABEL
-        child = node->next[i];
-        //print_st_node(child, 1);
+      child = node->next[i];
 
-        if(child->next_sz<=0) {
-          //print_st_node(child, 1);
-          node->next[i] = NULL;
-          shiftElementsLeft(node, i);
-          i--;
-          free(child);
+      if (!child) {
+        fprintf(stderr, "ERROR %s: node is not a valid st_node.\n", __FUNCTION__);
+        return;
+      }
+
+      // BRANCH_NODE -> BRANCH_NODE (w/o intermediate OUTBRANCH/INBRANCH).
+      if (child->type == BRANCH_NODE) {
+
+        // Move child nodes to parent.
+        for (j=0; j<child->next_sz; ++j) {
+          insert_st_node_at(node, child->next[j], i+1+j);
+          child->next[j] = NULL;
         }
       }
     }
 
+  } else { // Not BRANCH_NODE.
+
+    // Recurse into all children.
     for (i=0; i<node->next_sz; ++i) {
-      remove_empty_branch_node(node->next[i]);
+      remove_nested_branch_node(node->next[i]);
     }
+
+  }
+}
+
+void insert_st_node_at(st_node *node, st_node *newnode, int index)
+{
+  int i;
+
+  assert(index<node->next_sz);
+
+  // Allocate new slot.
+  node->next_sz++;
+  node->next = (st_node **)realloc(node->next,
+                                   node->next_sz * sizeof(st_node *));
+
+  // Move elements right.
+  for (i=index; i<node->next_sz-1; ++i) {
+    node->next[i+1] = node->next[i];
+  }
+  node->next[index] = newnode;
+}
+
+void remove_st_node_at(st_node *node, int index)
+{
+  int i;
+
+  assert(index<node->next_sz);
+
+  free_st_node(node->next[index]);
+
+  // Move elements left.
+  for (i=index; i<node->next_sz-1; ++i) {
+    node->next[i] = node->next[i+1];
+  }
+
+  // Release unused memory.
+  node->next_sz--;
+  node->next = (st_node **)realloc(node->next,
+                                   node->next_sz * sizeof(st_node *));
+}
+
+
+void remove_leaf_branch_node(st_node *node)
+{
+  int i;
+  st_node *child;
+
+  if (!node) {
+    fprintf(stderr, "ERROR %s: node is not a valid st_node.\n", __FUNCTION__);
+    return;
+  }
+
+  for (i=0; i<node->next_sz; /* ++i is at the end of block */) {
+    child = node->next[i];
+
+    if (!child) {
+      fprintf(stderr, "ERROR %s: node is not a valid st_node.\n", __FUNCTION__);
+      return;
+    }
+
+    // Remove leaf branch.
+    if (child->type == BRANCH_NODE && child->next_sz <= 0) {
+      // Beware! We have changed the node->next_sz here
+      // and node->next[i] is the new node->next[i+1] now.
+      remove_st_node_at(node, i);
+      continue; // Skip ++i.
+    }
+
+    // Recurse into child nodes.
+    if (child->next_sz > 0) {
+      remove_leaf_branch_node(child);
+    }
+
+    ++i;
   }
 }
 
@@ -517,17 +572,16 @@ int cmp_branchtag(const void *a, const void *b)
 
 /**
  * Sort branch nodes according to their branchtag.
- *
  */
-void sort_branches(st_node *root)
+void sort_branch_nodes(st_node *node)
 {
-  unsigned i;
-  st_node *node = root;
+  int i;
+
   if (node->type == BRANCH_NODE) {
     qsort((void *)node->next, node->next_sz, sizeof(st_node *), cmp_branchtag);
   }
 
   for (i=0; i<node->next_sz; ++i) {
-    sort_branches(node->next[i]);
+    sort_branch_nodes(node->next[i]);
   }
 }
