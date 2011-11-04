@@ -7,6 +7,7 @@
  */
 
 #define MAX_NR_OF_ROLES 100 // Maximum number of endpoint roles.
+#define MAX_HOSTNAME_LENGTH 256
 
 // A connection record.
 typedef struct {
@@ -16,6 +17,12 @@ typedef struct {
   unsigned port;
 } conn_rec;
 
+// A role-host map.
+typedef struct {
+  char *role;
+  char *host;
+} host_map;
+
 /**
  * \brief Load a hosts file.
  *
@@ -24,7 +31,7 @@ typedef struct {
  *
  * \returns Number of hosts loaded.
  */
-int connmgr_load_hosts(const char *hostfile, char *hosts[]);
+int connmgr_load_hosts(const char *hostfile, char ***hosts);
 
 
 /**
@@ -35,13 +42,14 @@ int connmgr_load_hosts(const char *hostfile, char *hosts[]);
  *
  * \returns Number of roles loaded.
  */
-int connmgr_load_roles(const char *scribble, char *roles[]);
+int connmgr_load_roles(const char *scribble, char ***roles);
 
 
 /**
  * \brief Create a connection record array using given parameters.
  *
  * @param[out] conns       Connection record array
+ * @param[out] role_hosts  Role-to-host mapping
  * @param[in]  roles       Roles array
  * @param[in]  roles_count Number of items in roles array
  * @param[in]  hosts       Hosts array
@@ -50,9 +58,10 @@ int connmgr_load_roles(const char *scribble, char *roles[]);
  * 
  * \returns Number of items in connection record array.
  */
-int connmgr_init(conn_rec **conns, char **roles, int roles_count,
-                                    char **hosts, int hosts_count,
-                                    int start_port);
+int connmgr_init(conn_rec **conns, host_map **role_hosts,
+                 char **roles, int roles_count,
+                 char **hosts, int hosts_count,
+                 int start_port);
 
 
 /**
@@ -60,11 +69,12 @@ int connmgr_init(conn_rec **conns, char **roles, int roles_count,
  *
  * @param[in]  infile      Input file path
  * @param[out] conns       Connection record array to write to
+ * @param[out] role_hosts  Role-to-host mapping
  * @param[out] nr_of_roles Number of roles 
  *
  * \returns Number of items in the connection record array.
  */
-int connmgr_read(const char *infile, conn_rec **conns, int *nr_of_roles);
+int connmgr_read(const char *infile, conn_rec **conns, host_map **role_hosts, int *nr_of_roles);
 
 
 /**
@@ -73,8 +83,10 @@ int connmgr_read(const char *infile, conn_rec **conns, int *nr_of_roles);
  * @param[in] outfile     Output file path
  * @param[in] conns       Connection record array
  * @param[in] nr_of_conns Number of items in connection record array
+ * @param[in] role_hosts  Role-to-host mapping
  * @param[in] nr_of_roles Number of roles in connection record
  */
-void connmgr_write(const char *outfile, const conn_rec conns[], int nr_of_conns, int nr_of_roles);
+void connmgr_write(const char *outfile, const conn_rec conns[], int nr_of_conns,
+                                        const host_map role_hosts[], int nr_of_roles);
 
 #endif // __CONNMGR_H__

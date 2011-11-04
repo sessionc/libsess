@@ -10,9 +10,9 @@ OBJS    = $(addprefix $(BUILD_DIR)/,$(OBJECTS))
 
 all: $(OBJS)
 
-connmgr: connmgr.c $(OBJS)
+connmgr: main.c $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/connmgr \
-	  $(OBJS) connmgr.c $(LD_FLAGS)
+	  $(OBJS) main.c $(LD_FLAGS) $(DEBUG)
 
 $(BUILD_DIR)/%.o: %.c $(INCLUDE_DIR)/%.h
 	$(CC) $(CFLAGS) -I../common -I. -o $(BUILD_DIR)/$*.o -c $*.c

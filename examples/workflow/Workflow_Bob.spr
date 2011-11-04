@@ -1,0 +1,4 @@
+protocol Workflow@Bob(role Alice) {
+  int from Alice;
+  int to Alice;
+}
