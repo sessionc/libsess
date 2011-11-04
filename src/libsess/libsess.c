@@ -9,6 +9,7 @@
  */
 
 #include <assert.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -23,7 +24,6 @@
 #include "st_node.h"
 
 #define OUTWHILE_SYNC_MAGIC 0x42
-
 
 /**
  * \brief Helper function to deallocate send queue.
@@ -64,19 +64,46 @@ role *find_role_in_session(session *s, char *role_name)
 void join_session(int *argc, char ***argv, session **s, const char *scribble)
 {
   conn_rec *conns; // Array of connection records
+  host_map *role_hosts; // Role-to-host mapping
   int nr_of_conns; // Number of connections
   int nr_of_roles; // Number of roles
 
   int conn_idx;
   int endpoint_idx; 
 
+  int option;
+  char *config_file = NULL;
+
+  // Invoke getopt to extract arguments we need
+  while (1) {
+    static struct option long_options[] = {
+      {"conf", required_argument, 0, 'c'},
+      {0, 0, 0, 0}
+    };
+
+    int option_idx = 0;
+    option = getopt_long(*argc, *argv, "c:", long_options, &option_idx);
+
+    if (option == -1) break;
+
+    switch (option) {
+      case 'c':
+        config_file = malloc(sizeof(char) * (strlen(optarg)+1));
+        strcpy(config_file, optarg);
+        fprintf(stderr, "Using configuration file %s\n", config_file);
+        break;
+    }
+  }
+  
+  if (config_file == NULL) {
+    config_file = malloc(sizeof(char) * 10);
+    config_file = "conn.conf"; // Default config file
+  }
+
   *s = (session *)malloc(sizeof(session));
   session *sess = *s; // Alias
 
-  // TODO: Extract configuration from command line arguments.
-
-  char *config_file = "conn.conf";
-  nr_of_conns = connmgr_read(config_file, &conns, &nr_of_roles);
+  nr_of_conns = connmgr_read(config_file, &conns, &role_hosts, &nr_of_roles);
 
   // Extract role_name from Scribble
   char *role_name;
