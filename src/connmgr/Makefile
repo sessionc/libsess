@@ -12,7 +12,7 @@ all: $(OBJS)
 
 connmgr: main.c $(OBJS)
 	$(CC) $(CFLAGS) -o $(BIN_DIR)/connmgr \
-	  $(OBJS) main.c $(LD_FLAGS) $(DEBUG)
+	  $(OBJS) main.c $(LD_FLAGS)
 
 $(BUILD_DIR)/%.o: %.c $(INCLUDE_DIR)/%.h
 	$(CC) $(CFLAGS) -I../common -I. -o $(BUILD_DIR)/$*.o -c $*.c

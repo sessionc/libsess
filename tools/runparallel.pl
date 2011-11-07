@@ -6,12 +6,23 @@ use strict;
 use warnings;
 
 use Cwd;
+use threads;
 
 my $conf_file = q{connection.conf};
 my $host_count = 0;
 my $conn_count = 0;
 
 my $pwd = getcwd;
+
+sub ssh_thread {
+    my $host = shift;
+    my $pwd  = shift;
+    my $role = shift;
+    my $conf = shift;
+    print "{ host=$host, role=$role }";
+    print " command=`ssh $host 'cd $pwd; ./$role -c $conf'\n";
+    system("ssh $host 'cd $pwd; ./$role -c $conf'");
+}
 
 #
 # Environment.
@@ -28,17 +39,25 @@ if (<$conf> =~ /(\d+)\s+(\d+)/) {
 print "Number of hosts: $host_count\n";
 print "Number of connections: $conn_count\n";
 
-my ($role, $host, $executable_name);
+
+print "-----------------------------------------------------------------\n";
+my ($role, $host, $role_name);
+my @threads;
 for my $host_idx (1 .. $host_count) {
   if (<$conf> =~ /([a-zA-Z0-9_-]+)\s+([a-zA-Z\.-]+)/) {
     ($role, $host) = ($1, $2);
-    $executable_name = lc $role;
+    $role_name = lc $role;
 
-    system("ssh $host 'cd $pwd; ./$executable_name -c $conf_file' &")
+    push @threads, threads->create('ssh_thread', $host, $pwd, $role_name, $conf_file);
   }
 }
-for my $conn_idx (1 .. $conn_count) {
+
+print "-----------------------------------------------------------------\n";
+
+foreach my $thread (@threads) {
+    $thread->join();
 }
+
 close $conf;
 
 0;

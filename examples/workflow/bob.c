@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <libsess.h>
 
@@ -6,6 +7,8 @@ int main(int argc, char **argv)
   session *s;
   join_session(&argc, &argv, &s, "Workflow_Bob.spr");
   role *Bob = s->get_role(s, "Alice");
+
+  printf("Process: Bob.\n");
 
   int v;
   recv_int(Bob, &v);
