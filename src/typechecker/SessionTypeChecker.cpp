@@ -62,7 +62,6 @@ namespace {
 
     int caseState, ifState;
     int breakStmt_count, branch_count, outbranch_count, chain_count;
-    int thenOrElse; // 1 or 0
 
     // Local variables for Visitors.
     Decl *current_decl_;
@@ -86,8 +85,6 @@ namespace {
 
         // Session Type tree root.
         root_ = (st_node *)malloc(sizeof(st_node));
-        // TODO: call this after session-initiation function call.
-        init_st_node(root_, BEGIN_NODE, "", "");
 
         chain_count = 0;
         caseState = 0;
@@ -276,6 +273,10 @@ namespace {
 
           // Visit FunctionCall Stmt. 
           BaseStmtVisitor::Visit(func_call_stmt);
+
+          if (func_name.find("join_session") != std::string::npos) {
+            init_st_node(root_, BEGIN_NODE, "", "");
+          }
 
           //
           // Basic assumption
