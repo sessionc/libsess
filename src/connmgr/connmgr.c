@@ -29,16 +29,17 @@ int connmgr_load_hosts(const char *hostsfile, char ***hosts)
   char buf[MAX_HOSTNAME_LENGTH]; // XXX: Potential buffer overflow.
 
   *hosts = malloc(sizeof(char *) * MAX_NR_OF_ROLES);
+//  char **hs = *hosts;
 
   if ((hosts_fp = fopen(hostsfile, "r")) == NULL) {
     perror("fopen(hostfile)");
     return 0;
   }
-  while (fscanf(hosts_fp, "%s", buf) != EOF) {
-    *hosts[host_idx] = malloc(sizeof(char) * MAX_HOSTNAME_LENGTH); // XXX
-    strncpy(*hosts[host_idx], buf, MAX_HOSTNAME_LENGTH-1);
+  while (fscanf(hosts_fp, "%s", buf) != EOF && host_idx < MAX_NR_OF_ROLES) {
+    (*hosts)[host_idx] = malloc(sizeof(char) * MAX_HOSTNAME_LENGTH); // XXX
+    strncpy((*hosts)[host_idx], buf, MAX_HOSTNAME_LENGTH-1);
 #ifdef __DEBUG__
-    fprintf(stderr, "hosts[%d]=%s\n", host_idx, *hosts[host_idx]);
+    fprintf(stderr, "hosts[%d]=%s\n", host_idx, (*hosts)[host_idx]);
 #endif
     host_idx++;
   }

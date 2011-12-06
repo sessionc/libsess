@@ -7,7 +7,7 @@
 # 
 ##===----------------------------------------------------------------------===##
 
-SESSCC_PATH      := ..
+SESSCC_PATH      := /data/svn-workingcopy/sesscc/trunk
 SESSCC_INC_DIR   := $(SESSCC_PATH)/include
 SESSCC_BUILD_DIR := $(SESSCC_PATH)/build
 

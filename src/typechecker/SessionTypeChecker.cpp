@@ -60,6 +60,8 @@ namespace {
     std::vector<std::string> roles;
     std::vector<std::string> roles_table;
 
+    std::string scribble_filename_;
+
     int caseState, ifState;
     int breakStmt_count, branch_count, outbranch_count, chain_count;
 
@@ -70,18 +72,10 @@ namespace {
     typedef TypeLocVisitor<SessionTypeCheckingConsumer> BaseTypeLocVisitor;
 
     public:
-      virtual void Initialise(ASTContext &ctx, std::string &scribble_filename) {
+      virtual void Initialise(ASTContext &ctx) {
         context_ = &ctx;
         src_mgr_ = &context_->getSourceManager();
         tu_decl_ = context_->getTranslationUnitDecl();
-
-        // Parse the Scribble file.
-        scribble_root_ = parse((const char *)scribble_filename.c_str());
-
-        if (scribble_root_ == NULL) { // ie. parse failed
-          fprintf(stderr, "ERROR: Unable to parse Scribble file.\n");
-          return;
-        }
 
         // Session Type tree root.
         root_ = (st_node *)malloc(sizeof(st_node));
@@ -103,8 +97,6 @@ namespace {
       void HandleTranslationUnit(ASTContext &ctx) {
         TranslationUnitDecl *tu_decl = context_->getTranslationUnitDecl();
 
-        appendto_node.push(root_);
-
         for (DeclContext::decl_iterator
              iter = tu_decl->decls_begin(), iter_end = tu_decl->decls_end();
              iter != iter_end; ++iter) {
@@ -114,9 +106,7 @@ namespace {
         }
 
         // Normalise.
-        normalise(root_);
-        // remove_empty_branch_node(root_);
-        // sort_branches(root_);
+        //normalise(root_);
 
         // Type-checking.
         if (compare_st_node(root_, scribble_root_)) {
@@ -245,290 +235,323 @@ namespace {
         if (isa<CallExpr>(stmt)) { // FunctionCall
           CallExpr *callExpr = cast<CallExpr>(stmt);
 
-          //
-          // Order of evaluating a function CALL is different from
-          // the order in the AST
-          // We want to make sure the arguments are evaluated first
-          // in a function call, before evaluating the func call itself
-          //
-    
-          Stmt *func_call_stmt = NULL;
-          std::string func_name(callExpr->getDirectCallee()->getNameAsString());
-          std::string datatype;
-          std::string role;
+          if (callExpr->getDirectCallee() != 0) {
 
-          for (Stmt::child_iterator
-               iter = stmt->child_begin(), iter_end = stmt->child_end();
-               iter != iter_end; ++iter) {
+            //
+            // Order of evaluating a function CALL is different from
+            // the order in the AST
+            // We want to make sure the arguments are evaluated first
+            // in a function call, before evaluating the func call itself
+            //
+        
+            Stmt *func_call_stmt = NULL;
+            std::string func_name(callExpr->getDirectCallee()->getNameAsString());
+            std::string datatype;
+            std::string role;
 
-            // Skip first child (FunctionCall Stmt).
-            if (func_call_stmt == NULL) {
-              func_call_stmt = *iter;
-              continue;
-            }
+            for (Stmt::child_iterator
+                iter = stmt->child_begin(), iter_end = stmt->child_end();
+                iter != iter_end; ++iter) {
 
-            // Visit function arguments.
-            if (*iter) BaseStmtVisitor::Visit(*iter);
-          }
-
-          // Visit FunctionCall Stmt. 
-          BaseStmtVisitor::Visit(func_call_stmt);
-
-          if (func_name.find("join_session") != std::string::npos) {
-            init_st_node(root_, BEGIN_NODE, "", "");
-          }
-
-          //
-          // Basic assumption
-          // 1. Both sending and receiving uses prefix_type_name format
-          // 2. Arguments positions of sending and receiving are same
-          //    (at least for role argument)
-          //
-
-          // ---------- Send ----------
-          if (func_name.find("send_") != std::string::npos) {
-
-            addtoBranch_counter();
-
-            // Extract the datatype (last segment of function name).
-            datatype = func_name.substr(func_name.find("_") + 1,
-                                        std::string::npos);
-
-            // Extract the role (first argument).
-            Expr *expr = callExpr->getArg(0);
-            if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-              if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                  role = VD->getNameAsString();
+                // Skip first child (FunctionCall Stmt).
+                if (func_call_stmt == NULL) {
+                func_call_stmt = *iter;
+                continue;
                 }
-              }
+
+                // Visit function arguments.
+                if (*iter) BaseStmtVisitor::Visit(*iter);
             }
 
 
-            if (strcmp(datatype.c_str(), "string") == 0) {
-              Expr *value = callExpr->getArg(1);
+            // Visit FunctionCall Stmt. 
+            BaseStmtVisitor::Visit(func_call_stmt);
+
+            // ---------- Initialisation ----------
+            if (func_name.find("join_session") != std::string::npos) {
+              Expr *value = callExpr->getArg(3);
               if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(value)) {
                 if (ImplicitCastExpr *ICE2 = dyn_cast<ImplicitCastExpr>(ICE->getSubExpr())) {
                   if (StringLiteral *SL = dyn_cast<StringLiteral>(ICE2->getSubExpr())) {
-                    std::string str_lit = SL->getString();
-                    llvm::outs() << "[StringLiteral " << str_lit << "]\n";
+                    scribble_filename_ = SL->getString();
                   }
                 }
               }
-            }
 
-            // Construct the ST node.
-            st_node *node = (st_node *)malloc(sizeof(st_node));
-            init_st_node(node, SEND_NODE, role.c_str(), datatype.c_str());
+              // Parse the Scribble file.
+              scribble_root_ = parse((const char *)scribble_filename_.c_str());
 
-            // Put new ST node in position (ie. child of previous_node).
-            st_node * previous_node = appendto_node.top();
-            append_st_node(previous_node, node);
-                    
-            return; // End of SEND_NODE construction.
-          }
-          // ---------- End of Send -----------
-
-
-          // ---------- Receive/Recv ----------
-          if (func_name.find("receive_") != std::string::npos  // Indirect recv
-              || func_name.find("recv_") != std::string::npos) { // Direct recv
-
-            addtoBranch_counter();
-
-            // Extract the datatype (last segment of function name).
-            datatype = func_name.substr(func_name.find("_") + 1,
-                                        std::string::npos);
-
-            // Extract the role (first argument).
-            Expr *expr = callExpr->getArg(0);
-            if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-              if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                  role = VD->getNameAsString();
-                }
+              if (scribble_root_ == NULL) { // ie. parse failed
+                llvm::errs() << "ERROR: Unable to parse Scribble file.\n";
+                return;
               }
+
+              init_st_node(root_, BEGIN_NODE, "", "");
+              appendto_node.push(root_);
+              return;
             }
 
-            // Construct the ST node.
-            st_node *node = (st_node *)malloc(sizeof(st_node));
-            init_st_node(node, RECV_NODE, role.c_str(), datatype.c_str());
+            if (func_name.find("end_session") != std::string::npos) {
+                // Nothing for now.
+                return;
+            }
 
-            // Put new ST node in position (ie. child of previous_node).
-            st_node * previous_node = appendto_node.top();
-            append_st_node(previous_node, node);
-            
-            return; // end of RECV_NODE construction.
-          }
-          // ---------- End of Receive/Recv ----------
+            //
+            // Basic assumption
+            // 1. Both sending and receiving uses prefix_type_name format
+            // 2. Arguments positions of sending and receiving are same
+            //    (at least for role argument)
+            //
 
+            // ---------- Send ----------
+            if (func_name.find("send_") != std::string::npos) {
 
-          // ---------- Outwhile ----------
-          if (func_name.find("outwhile") != std::string::npos) {
+              addtoBranch_counter();
 
-            addtoBranch_counter();
-            chain_count++;
+              // Extract the datatype (last segment of function name).
+              datatype = func_name.substr(func_name.find("_") + 1, std::string::npos);
 
-            // Extract the roles (varyargs, third argument to last argument).
-            std::string role_str;
-            for (unsigned arg = 2, arg_end = callExpr->getNumArgs();
-                 arg < arg_end; ++arg) {
-
-              // Extract the role(s).
-              Expr *expr = callExpr->getArg(arg);
+              // Extract the role (first argument).
+              Expr *expr = callExpr->getArg(0);
               if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-                if (DeclRefExpr *DRE=dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
                   if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
                     role = VD->getNameAsString();
-                    roles.push_back(role);
                   }
                 }
               }
+
+
+              if (strcmp(datatype.c_str(), "string") == 0) {
+              Expr *value = callExpr->getArg(1);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(value)) {
+                  if (ImplicitCastExpr *ICE2 = dyn_cast<ImplicitCastExpr>(ICE->getSubExpr())) {
+                    if (StringLiteral *SL = dyn_cast<StringLiteral>(ICE2->getSubExpr())) {
+                      std::string str_lit = SL->getString();
+                    }
+                  }
+                }
+              }
+
+              // Construct the ST node.
+              st_node *node = (st_node *)malloc(sizeof(st_node));
+              init_st_node(node, SEND_NODE, role.c_str(), datatype.c_str());
+
+              // Put new ST node in position (ie. child of previous_node).
+              st_node * previous_node = appendto_node.top();
+              append_st_node(previous_node, node);
+                      
+              return; // End of SEND_NODE construction.
             }
-
-            // Create role string (joined outwhile roles).
-            sort(roles.begin(), roles.end());
-            for (std::vector<std::string>::iterator
-                 it=roles.begin(), it_end=roles.end();
-                 it < it_end; ++it) {
-              role_str += *it + "|";
-            }
-
-            st_node *node = (st_node *)malloc(sizeof(st_node));
-            init_st_node(node, OUTWHILE_NODE, role_str.c_str(), "");
-
-            st_node * previous_node = appendto_node.top();
-            append_st_node(previous_node, node);
-            appendto_node.push(node);
-            roles.clear();
-                  
-            return;
-          }
-          // ---------- End of Outwhile ----------
+            // ---------- End of Send -----------
 
 
-          // ---------- Inwhile ----------
-          if (func_name.find("inwhile") != std::string::npos) {
-                    
-            addtoBranch_counter();
-            chain_count++;
+            // ---------- Receive/Recv ----------
+            if (func_name.find("receive_") != std::string::npos  // Indirect recv
+                || func_name.find("recv_") != std::string::npos) { // Direct recv
 
-            // Extract the roles (varyargs, second argument to last argument).
-            std::string role_str;
-            for (unsigned arg = 1, arg_end = callExpr->getNumArgs();
-                 arg < arg_end; ++arg) {
+                addtoBranch_counter();
 
-              // Extract the role(s).
-              Expr *expr = callExpr->getArg(arg);
-              if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-                if (DeclRefExpr *DRE=dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                  if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                // Extract the datatype (last segment of function name).
+                datatype = func_name.substr(func_name.find("_") + 1,
+                                            std::string::npos);
+
+                // Extract the role (first argument).
+                Expr *expr = callExpr->getArg(0);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
                     role = VD->getNameAsString();
-                    roles.push_back(role);
-                  }
+                    }
                 }
-              }
-            }
-
-            // Create role string (joined inwhile roles).
-            sort(roles.begin(), roles.end());
-            for (std::vector<std::string>::iterator
-                 it=roles.begin(), it_end=roles.end();
-                 it < it_end; ++it) {
-              role_str += *it + "|";
-            }
-
-            st_node *node = (st_node *)malloc(sizeof(st_node));
-            init_st_node(node, INWHILE_NODE, role_str.c_str(), "");
-
-            st_node * previous_node = appendto_node.top();
-            append_st_node(previous_node, node);
-            appendto_node.push(node);
-            roles.clear();
-
-            return;
-          }
-          // ---------- End of Inwhile ----------
-
-
-          // ---------- Outbranch ----------
-          if (func_name.find("outbranch") != std::string::npos) {
-            std::string branchtag;
-            if (addtoBranch_counter()) {
-              outbranch_count++;
-            }
-
-            // Extract the role.
-            Expr *expr = callExpr->getArg(0);
-            if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-              if (DeclRefExpr *DRE =dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                  role = VD->getNameAsString();
                 }
-              }
-            }
 
-            // Extract the tags.
-            expr = callExpr->getArg(1);
-            if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-              if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                  branchtag = VD->getNameAsString(); // XXX: variable name
-                  // l.getSourceLocation(VD->getSourceLocation(), NULL, src_mgr_, &context_->getLangOpts());
+                // Construct the ST node.
+                st_node *node = (st_node *)malloc(sizeof(st_node));
+                init_st_node(node, RECV_NODE, role.c_str(), datatype.c_str());
+
+                // Put new ST node in position (ie. child of previous_node).
+                st_node * previous_node = appendto_node.top();
+                append_st_node(previous_node, node);
+                
+                return; // end of RECV_NODE construction.
+            }
+            // ---------- End of Receive/Recv ----------
+
+
+            // ---------- Outwhile ----------
+            if (func_name.find("outwhile") != std::string::npos) {
+
+                addtoBranch_counter();
+                chain_count++;
+
+                // Extract the roles (varyargs, third argument to last argument).
+                std::string role_str;
+                for (unsigned arg = 2, arg_end = callExpr->getNumArgs();
+                    arg < arg_end; ++arg) {
+
+                // Extract the role(s).
+                Expr *expr = callExpr->getArg(arg);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                    if (DeclRefExpr *DRE=dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                        role = VD->getNameAsString();
+                        roles.push_back(role);
+                    }
+                    }
                 }
-              }
-            }
-
-            st_node *node = (st_node *)malloc(sizeof(st_node));
-            init_st_node(node, OUTBRANCH_NODE, role.c_str(), "");
-            strncpy(node->branchtag, branchtag.c_str(), branchtag.size() < 255 ? branchtag.size() : 254);
-
-            st_node * previous_node = appendto_node.top();
-            append_st_node(previous_node, node);
-            appendto_node.push(node);
-
-            return;
-          }
-          // ---------- End of Outbranch ----------
-
-
-          // ---------- Inbranch ----------
-          if (func_name.find("inbranch") != std::string::npos) {
-            std::string branchtag;
-
-            addtoBranch_counter();
-
-            // Extract the role.
-            Expr *expr = callExpr->getArg(0);
-            if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-              if (DeclRefExpr *DRE =dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                  role = VD->getNameAsString();
                 }
-              }
-            }
 
-            // Extract the tags.
-            expr = callExpr->getArg(1);
-            if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-              if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
-                if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                  branchtag = VD->getNameAsString(); // XXX: variable name
-                  // l.getSourceLocation(VD->getSourceLocation(), NULL, src_mgr_, &context_->getLangOpts());
+                // Create role string (joined outwhile roles).
+                sort(roles.begin(), roles.end());
+                for (std::vector<std::string>::iterator
+                    it=roles.begin(), it_end=roles.end();
+                    it < it_end; ++it) {
+                role_str += *it + "|";
                 }
-              }
+
+                st_node *node = (st_node *)malloc(sizeof(st_node));
+                init_st_node(node, OUTWHILE_NODE, role_str.c_str(), "");
+
+                st_node * previous_node = appendto_node.top();
+                append_st_node(previous_node, node);
+                appendto_node.push(node);
+                roles.clear();
+                    
+                return;
             }
+            // ---------- End of Outwhile ----------
 
-            st_node *node = (st_node *)malloc(sizeof(st_node));
-            init_st_node(node, INBRANCH_NODE, role.c_str(), "");
 
-            st_node * previous_node = appendto_node.top();
-            append_st_node(previous_node, node);
-            appendto_node.push(node);
+            // ---------- Inwhile ----------
+            if (func_name.find("inwhile") != std::string::npos) {
+                        
+                addtoBranch_counter();
+                chain_count++;
 
-            return;
-          }
-          // ---------- End of Inbranch ----------
+                // Extract the roles (varyargs, second argument to last argument).
+                std::string role_str;
+                for (unsigned arg = 1, arg_end = callExpr->getNumArgs();
+                    arg < arg_end; ++arg) {
+
+                // Extract the role(s).
+                Expr *expr = callExpr->getArg(arg);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                    if (DeclRefExpr *DRE=dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                        role = VD->getNameAsString();
+                        roles.push_back(role);
+                    }
+                    }
+                }
+                }
+
+                // Create role string (joined inwhile roles).
+                sort(roles.begin(), roles.end());
+                for (std::vector<std::string>::iterator
+                    it=roles.begin(), it_end=roles.end();
+                    it < it_end; ++it) {
+                role_str += *it + "|";
+                }
+
+                st_node *node = (st_node *)malloc(sizeof(st_node));
+                init_st_node(node, INWHILE_NODE, role_str.c_str(), "");
+
+                st_node * previous_node = appendto_node.top();
+                append_st_node(previous_node, node);
+                appendto_node.push(node);
+                roles.clear();
+
+                return;
+            }
+            // ---------- End of Inwhile ----------
+
+
+            // ---------- Outbranch ----------
+            if (func_name.find("outbranch") != std::string::npos) {
+                std::string branchtag;
+                if (addtoBranch_counter()) {
+                outbranch_count++;
+                }
+
+                // Extract the role.
+                Expr *expr = callExpr->getArg(0);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                if (DeclRefExpr *DRE =dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                    role = VD->getNameAsString();
+                    }
+                }
+                }
+
+                // Extract the tags.
+                expr = callExpr->getArg(1);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                    branchtag = VD->getNameAsString(); // XXX: variable name
+                    // l.getSourceLocation(VD->getSourceLocation(), NULL, src_mgr_, &context_->getLangOpts());
+                    }
+                }
+                }
+
+                st_node *node = (st_node *)malloc(sizeof(st_node));
+                init_st_node(node, OUTBRANCH_NODE, role.c_str(), "");
+                strncpy(node->branchtag, branchtag.c_str(), branchtag.size() < 255 ? branchtag.size() : 254);
+
+                st_node * previous_node = appendto_node.top();
+                append_st_node(previous_node, node);
+                appendto_node.push(node);
+
+                return;
+            }
+            // ---------- End of Outbranch ----------
+
+
+            // ---------- Inbranch ----------
+            if (func_name.find("inbranch") != std::string::npos) {
+                std::string branchtag;
+
+                addtoBranch_counter();
+
+                // Extract the role.
+                Expr *expr = callExpr->getArg(0);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                if (DeclRefExpr *DRE =dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                    role = VD->getNameAsString();
+                    }
+                }
+                }
+
+                // Extract the tags.
+                expr = callExpr->getArg(1);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                    branchtag = VD->getNameAsString(); // XXX: variable name
+                    // l.getSourceLocation(VD->getSourceLocation(), NULL, src_mgr_, &context_->getLangOpts());
+                    }
+                }
+                }
+
+                st_node *node = (st_node *)malloc(sizeof(st_node));
+                init_st_node(node, INBRANCH_NODE, role.c_str(), "");
+
+                st_node * previous_node = appendto_node.top();
+                append_st_node(previous_node, node);
+                appendto_node.push(node);
+
+                return;
+            }
+            // ---------- End of Inbranch ----------
+
+          } else {
+
+            llvm::errs() << "Warn: Skipping over a non-direct function call\n";
+            callExpr->dump();
+
+          } // if direct function call
 
         } // if isa<CallExpr>
 
@@ -697,6 +720,17 @@ namespace {
  
         } // isa<IfStmt>
 
+
+        // Continue (within while-loop).
+        if (isa<ContinueStmt>(stmt)) {
+
+          // TODO (1) Lookup recursion block name
+          // TODO (2) init_node(RECUR_LABEL, datatype=recurlabel);
+
+          return;
+        } // isa<ContinueStmt>
+
+
         for (Stmt::child_iterator
              iter = stmt->child_begin(), iter_end = stmt->child_end();
              iter != iter_end; ++iter) {
@@ -750,33 +784,17 @@ namespace {
    *
    */
   class SessionTypeCheckingAction : public PluginASTAction {
-    private:
-      std::string scribble_filename;
-
     protected:
       ASTConsumer *CreateASTConsumer(CompilerInstance &CI, llvm::StringRef) {
-        SessionTypeCheckingConsumer *checker= new SessionTypeCheckingConsumer();
+        SessionTypeCheckingConsumer *checker = new SessionTypeCheckingConsumer();
         if (CI.hasASTContext()) {
-          checker->Initialise(CI.getASTContext(), scribble_filename);
+          checker->Initialise(CI.getASTContext());
         }
         return checker;
       }
 
       bool ParseArgs(const CompilerInstance &CI,
                      const std::vector<std::string>& args) {
-        if (args.size() == 0) {
-          llvm::outs() << "Session Type Checker [sess-type-check] "
-                       << "clang plugin\n";
-          llvm::outs() << "Missing argument: "
-                       << "Please specify Scribble file\n";
-          return false;
-        }
-
-        if (args.size() == 1) {
-          scribble_filename = std::string(args[0]);
-          llvm::outs() << "Scribble: " << scribble_filename << "\n";
-        }
-
         return true;
       }
 
@@ -788,7 +806,3 @@ namespace {
 
 static FrontendPluginRegistry::Add<SessionTypeCheckingAction>
 X("sess-type-check", "Session type checker");
-#ifdef __DEBUG__
-        fprintf(stderr, "Normalise ST tree.\n");
-#endif 
-
