@@ -26,6 +26,29 @@ stackli *parents;
 char **roles_table = NULL;
 int roles_count = 0;
 
+// This handles a special 'nil' node
+// which groups together preamble and protocol definition
+void visit_toplevel_node(pANTLR3_BASE_TREE node)
+{
+  pANTLR3_BASE_TREE tmp_node;
+
+  char *node_name;
+
+  int i;
+  int child_count = node->getChildCount(node);
+
+  for (i=0; i<child_count; ++i) {
+    tmp_node = node->getChild(node, i);
+    node_name = (char *)tmp_node->getText(tmp_node)->chars;
+    
+    /* TODO Ignoring all importType importProtocol ANNOTATION */
+
+    if (strcmp(node_name, "protocol") == 0) {
+      visit_protocol_node(tmp_node);
+    }
+  }
+}
+
 
 void visit_protocol_node(pANTLR3_BASE_TREE node)
 {
@@ -41,7 +64,7 @@ void visit_protocol_node(pANTLR3_BASE_TREE node)
   protocol_name = (char *)tmp_node->getText(tmp_node)->chars;
 
   tmp_node = node->getChild(node, 1);
-  if (strcmp((const char *)tmp_node->getText(tmp_node)->chars, "@") == 0) {
+  if (strcmp((const char *)tmp_node->getText(tmp_node)->chars, "at") == 0) {
 
     // Endpoint.
     tmp_node = node->getChild(node, 2);
@@ -506,6 +529,10 @@ void visit_node(pANTLR3_BASE_TREE node)
   } else if (strcmp(node_name, "repeat") == 0) {
 
     visit_repeat_node(node);
+
+  } else if (strcmp(node_name, "nil") == 0) {
+
+    visit_toplevel_node(node);
 
   } else {
 

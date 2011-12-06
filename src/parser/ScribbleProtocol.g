@@ -37,7 +37,7 @@ dataTypeDef: StringLiteral ;
 
 simpleName: ID ;
 
-protocolDef: 'protocol'^ protocolName ( '@' roleName )? ( parameterDefs )? blockDef ;
+protocolDef: 'protocol'^ protocolName ( 'at' roleName )? ( parameterDefs )? blockDef ;
 
 protocolName: ID ;
 
@@ -75,7 +75,7 @@ onMessageDef: interactionSignatureDef ':'^ activityList ;
 
 activityList: ( ( ANNOTATION )* activityDef )* ;
 
-// repeatDef: 'repeat'^ ( '@' roleName ( ','! roleName )* )? blockDef ;
+// repeatDef: 'repeat'^ ( 'at' roleName ( ','! roleName )* )? blockDef ;
 repeatDef: 'repeat'^ ( 'from' roleName ( ','! roleName )* |
 				 		'to' roleName ( ','! roleName )* ) blockDef;
 
