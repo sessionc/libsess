@@ -238,19 +238,11 @@ role *sess_server(void *ctx, int type, const char *uri, const char *scribble)
 #endif
 
   role *r = zmq_socket(ctx, type);
-  char *their_scribble;
-  st_node *r_node;
-  st_node *node;
 
   if (zmq_bind(r, uri) != 0) perror(__FUNCTION__);
 
-//  receive_string(r, &their_scribble); // Send scribble filename
-
-//  node   = parse(scribble);
-//  r_node = parse(their_scribble);
-
 #ifdef __DEBUG__
-  fprintf(stderr, "%s: Session initiaion\n", __FUNCTION__);//, node->role, r_node->role);
+  fprintf(stderr, "%s: Session initiaion\n", __FUNCTION__);
 #endif
 
   return r;
