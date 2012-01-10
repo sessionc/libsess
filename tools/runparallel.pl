@@ -19,9 +19,10 @@ sub ssh_thread {
     my $pwd  = shift;
     my $role = shift;
     my $conf = shift;
+    my $args = shift;
     print "{ host=$host, role=$role }";
-    print " command=`ssh $host 'cd $pwd; ./$role -c $conf'\n";
-    system("ssh $host 'cd $pwd; ./$role -c $conf'");
+    print " command=`ssh $host 'cd $pwd; ./$role -c $conf $args'\n";
+    system("ssh $host 'cd $pwd; ./$role -c $conf $args'");
 }
 
 #
@@ -44,11 +45,11 @@ print "-----------------------------------------------------------------\n";
 my ($role, $host, $role_name);
 my @threads;
 for my $host_idx (1 .. $host_count) {
-  if (<$conf> =~ /([a-zA-Z0-9_-]+)\s+([a-zA-Z\.-]+)/) {
+  if (<$conf> =~ /([a-zA-Z0-9_-]+)\s+([a-zA-Z0-9\.-]+)/) {
     ($role, $host) = ($1, $2);
     $role_name = lc $role;
 
-    push @threads, threads->create('ssh_thread', $host, $pwd, $role_name, $conf_file);
+    push @threads, threads->create('ssh_thread', $host, $pwd, $role_name, $conf_file, "@ARGV");
   }
 }
 
