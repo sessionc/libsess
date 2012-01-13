@@ -14,6 +14,7 @@
 #include <string.h>
 #include <strings.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <zmq.h>
 
@@ -94,7 +95,10 @@ void join_session(int *argc, char ***argv, session **s, const char *scribble)
         break;
     }
   }
-  
+
+  *argc -= optind;
+  *argv += optind;
+
   if (config_file == NULL) {
     config_file = malloc(sizeof(char) * 10);
     config_file = "conn.conf"; // Default config file
@@ -204,13 +208,17 @@ void end_session(session *s)
   unsigned endpoint_idx;
   unsigned endpoints_count = s->endpoints_count;
 
-  for (endpoint_idx=endpoints_count-1; endpoint_idx>0; --endpoint_idx) {
+  sleep(1); // XXX hack to allow connections to terminate
+
+  for (endpoint_idx=0; endpoint_idx<endpoints_count; ++endpoint_idx) {
 #ifdef __DEBUG__
   fprintf(stderr, " -- Disconnecting endpoint %d\n", endpoint_idx);
 #endif
     if (zmq_close(s->endpoints[endpoint_idx]->role_ptr) != 0) {
       perror("zmq_close");
     }
+  }
+  for (endpoint_idx=0; endpoint_idx<endpoints_count; ++endpoint_idx) {
     free(s->endpoints[endpoint_idx]);
   }
   free(s->endpoints);
