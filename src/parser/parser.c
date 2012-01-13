@@ -70,11 +70,15 @@ void visit_protocol_node(pANTLR3_BASE_TREE node)
     tmp_node = node->getChild(node, 2);
     myrole_name = (char *)tmp_node->getText(tmp_node)->chars;
 
+#ifdef __DEBUG__
     printf("Protocol %s @ %s\n", protocol_name, myrole_name);
+#endif 
     i = 3;
   } else {
     // Global.
+#ifdef __DEBUG__
     printf("Global Protocol %s\n", protocol_name);
+#endif 
     i = 0;
   }
 
