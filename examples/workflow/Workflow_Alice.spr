@@ -1,4 +1,0 @@
-protocol Workflow@Alice(role Bob) {
-  int to Bob;
-  int from Bob;
-}
