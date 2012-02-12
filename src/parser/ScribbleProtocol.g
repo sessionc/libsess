@@ -63,7 +63,7 @@ typeReferenceDef: ID ;
 
 interactionSignatureDef: ( typeReferenceDef | ID^ '('! ( typeReferenceDef ( ','! typeReferenceDef )* )? ')'! ) ;
 
-interactionDef: interactionSignatureDef ( 'from'^ roleName ( 'to' roleName ( ','! roleName )* )? |
+interactionDef: interactionSignatureDef ( 'from'^ roleName ( ','! roleName )* ( 'to' roleName ( ','! roleName )* )? |
 							'to'^ roleName ( ','! roleName )* ) ;
 
 

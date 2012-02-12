@@ -303,6 +303,38 @@ namespace {
             //    (at least for role argument)
             //
 
+            // ---------- M-Send (must go before send_) ---------- 
+            if (func_name.find("msend_") != std::string::npos) {
+
+              addtoBranch_counter();
+
+              // Extract the datatype (last segment of function name).
+              datatype = func_name.substr(func_name.find("_") + 1, std::string::npos);
+
+              // Extract the roles (3rd argument onwards).
+              for (unsigned arg = 2, arg_end = callExpr->getNumArgs();
+                  arg < arg_end; ++arg) {
+                Expr *expr = callExpr->getArg(arg);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                      role += VD->getNameAsString() + std::string("|");
+                    }
+                  }
+                }
+              }
+
+              st_node *node = (st_node *)malloc(sizeof(st_node));
+              init_st_node(node, SEND_NODE, role.substr(0, role.size()-1).c_str(), datatype.c_str());
+
+              // Put new ST node in position (ie. child of previous_node).
+              st_node * previous_node = appendto_node.top();
+              append_st_node(previous_node, node);
+                      
+              return; // End of SEND_NODE construction.
+            }
+            // ---------- End of M-Send ----------
+
             // ---------- Send ----------
             if (func_name.find("send_") != std::string::npos) {
 
@@ -344,7 +376,38 @@ namespace {
               return; // End of SEND_NODE construction.
             }
             // ---------- End of Send -----------
+            
+            // ---------- M-Recv (must go before recv_) ---------- 
+            if (func_name.find("mrecv_") != std::string::npos) {
 
+              addtoBranch_counter();
+
+              // Extract the datatype (last segment of function name).
+              datatype = func_name.substr(func_name.find("_") + 1, std::string::npos);
+
+              // Extract the roles (3rd argument onwards).
+              for (unsigned arg = 2, arg_end = callExpr->getNumArgs();
+                  arg < arg_end; ++arg) {
+                Expr *expr = callExpr->getArg(arg);
+                if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
+                  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                    if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+                      role += VD->getNameAsString() + std::string("|");
+                    }
+                  }
+                }
+              }
+
+              st_node *node = (st_node *)malloc(sizeof(st_node));
+              init_st_node(node, RECV_NODE, role.substr(0, role.size()-1).c_str(), datatype.c_str());
+
+              // Put new ST node in position (ie. child of previous_node).
+              st_node * previous_node = appendto_node.top();
+              append_st_node(previous_node, node);
+                      
+              return; // End of RECV_NODE construction.
+            }
+            // ---------- End of M-Recv ----------
 
             // ---------- Receive/Recv ----------
             if (func_name.find("receive_") != std::string::npos  // Indirect recv
@@ -359,11 +422,11 @@ namespace {
                 // Extract the role (first argument).
                 Expr *expr = callExpr->getArg(0);
                 if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(expr)) {
-                if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
+                  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ICE->getSubExpr())) {
                     if (VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-                    role = VD->getNameAsString();
+                      role = VD->getNameAsString();
                     }
-                }
+                  }
                 }
 
                 // Construct the ST node.

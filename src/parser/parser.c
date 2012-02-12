@@ -308,17 +308,26 @@ void visit_send_node(pANTLR3_BASE_TREE node)
   st_node *send_node;
   st_node *parent_node;
 
-  char *role_name;
+  char *child_node_name;
+  char role_names[255];
   char *type_name;
+
+  int i;
+  int child_count = node->getChildCount(node);
 
   tmp_node  = node->getChild(node, 0); // Type name
   type_name = (char *)tmp_node->getText(tmp_node)->chars;
 
-  tmp_node  = node->getChild(node, 1); // Role name
-  role_name = (char *)tmp_node->getText(tmp_node)->chars;
+  for (i=1; i<child_count; ++i) {
+    tmp_node  = node->getChild(node, i); // Role name
+    child_node_name = (char *)tmp_node->getText(tmp_node)->chars;
+    strncat(role_names, child_node_name, 254);
+    strncat(role_names, "|", 254);
+  }
+  role_names[strlen(role_names)-1] = '\0';
 
   send_node = malloc(sizeof(st_node));
-  init_st_node(send_node, SEND_NODE, role_name, type_name);//, "");
+  init_st_node(send_node, SEND_NODE, role_names, type_name);//, "");
 
   top(parents, &parent_node);
   append_st_node(parent_node, send_node);

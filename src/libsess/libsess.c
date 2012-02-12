@@ -47,6 +47,7 @@ role *find_role_in_session(session *s, char *role_name)
       return s->endpoints[i]->role_ptr;
     }
   }
+
   fprintf(stderr, "%s: Role %s not found in session.\n",
                     __FUNCTION__, role_name);
 #ifdef __DEBUG__
@@ -372,6 +373,56 @@ int send_string(role *r, const char *string)
   char *send_buffer = (char *)malloc(size);
   strncpy(send_buffer, string, size);
 #endif
+
+  zmq_msg_init_data(&msg, send_buffer, size, _dealloc, NULL);
+  rc = zmq_send(r, &msg, 0);
+  zmq_msg_close(&msg);
+ 
+#ifdef __DEBUG__
+  fprintf(stderr, ".\n");
+#endif
+
+  return rc;
+}
+
+
+int send_float(role *r, float val)
+{
+  int rc = 0;
+  zmq_msg_t msg;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " --> %s(%f) ", __FUNCTION__, val);
+#endif
+
+  float *buf = malloc(sizeof(float));
+  memcpy(buf, &val, sizeof(float));
+
+  zmq_msg_init_data(&msg, buf, sizeof(float), _dealloc, NULL);
+  rc = zmq_send(r, &msg, 0);
+  zmq_msg_close(&msg);
+ 
+#ifdef __DEBUG__
+  fprintf(stderr, ".\n");
+#endif
+
+  return rc;
+}
+
+
+int send_float_array(role *r, const float arr[], size_t length)
+{
+  int rc = 0;
+  zmq_msg_t msg;
+  size_t size = sizeof(float) * length;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " --> %s(size=%zu) ", __FUNCTION__, size);
+#endif
+
+  // Copy to send buffer
+  float *send_buffer = (float *)malloc(size);
+  memcpy(send_buffer, arr, size);
 
   zmq_msg_init_data(&msg, send_buffer, size, _dealloc, NULL);
   rc = zmq_send(r, &msg, 0);
@@ -723,6 +774,189 @@ int recv_double_array(role *r, double *arr, size_t *arr_size)
 
 #ifdef __DEBUG__
   fprintf(stderr, "[%f/%zu] .\n", *arr, *arr_size);
+#endif
+
+  return rc;
+}
+
+
+int receive_float(role *r, float **dst)
+{
+  int rc = 0;
+  zmq_msg_t msg;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " <-- %s() ", __FUNCTION__);
+#endif
+
+  zmq_msg_init(&msg);
+  rc = zmq_recv(r, &msg, 0);
+  *dst = (float *)malloc(sizeof(float));
+  assert(zmq_msg_size(&msg) == sizeof(float));
+  memcpy(*dst, (float *)zmq_msg_data(&msg), zmq_msg_size(&msg));
+  zmq_msg_close(&msg);
+
+#ifdef __DEBUG__
+  fprintf(stderr, "[%f] .\n", **dst);
+#endif
+
+  return rc;
+}
+
+
+int recv_float(role *r, float *dst)
+{
+  int rc = 0;
+  zmq_msg_t msg;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " <-- %s() ", __FUNCTION__);
+#endif
+
+  zmq_msg_init(&msg);
+  rc = zmq_recv(r, &msg, 0);
+  assert(zmq_msg_size(&msg) == sizeof(float));
+  memcpy(dst, (float *)zmq_msg_data(&msg), zmq_msg_size(&msg));
+  zmq_msg_close(&msg);
+
+#ifdef __DEBUG__
+  fprintf(stderr, "[%f] .\n", *dst);
+#endif
+
+  return rc;
+}
+
+
+int receive_float_array(role *r, float **arr, size_t *length)
+{
+  int rc = 0;
+  zmq_msg_t msg;
+  size_t size = -1;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " <-- %s() ", __FUNCTION__);
+#endif
+
+  zmq_msg_init(&msg);
+  rc = zmq_recv(r, &msg, 0);
+  size = zmq_msg_size(&msg);
+  *arr = (float *)malloc(size);
+  memcpy(*arr, (float *)zmq_msg_data(&msg), size);
+  if (size % sizeof(float) == 0) {
+    *length = size / sizeof(float);
+  }
+  zmq_msg_close(&msg);
+
+#ifdef __DEBUG__
+  fprintf(stderr, "[%f/%zu] .\n", **arr, *length);
+#endif
+
+  return rc;
+}
+
+
+int recv_float_array(role *r, float *arr, size_t *arr_size)
+{
+  int rc = 0;
+  zmq_msg_t msg;
+  size_t size = -1;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " <-- %s() ", __FUNCTION__);
+#endif
+
+  zmq_msg_init(&msg);
+  rc = zmq_recv(r, &msg, 0);
+  size = zmq_msg_size(&msg);
+  if (*arr_size * sizeof(float) >= size) {
+    memcpy(arr, (float *)zmq_msg_data(&msg), size);
+    if (size % sizeof(float) == 0) {
+      *arr_size = size / sizeof(float);
+    }
+  } else {
+    memcpy(arr, (float *)zmq_msg_data(&msg), *arr_size * sizeof(float));
+    fprintf(stderr,
+      "%s: Received data (%zu bytes) > memory size (%zu), data truncated\n",
+      __FUNCTION__, size, *arr_size);
+  }
+  zmq_msg_close(&msg);
+
+#ifdef __DEBUG__
+  fprintf(stderr, "[%f/%zu] .\n", *arr, *arr_size);
+#endif
+
+  return rc;
+}
+
+
+/* ----- Multicast -----------------------------------------------------------*/
+
+
+int msend_int(int val, int nr_of_roles, ...)
+{
+  int rc = 0;
+  int i;
+  role *r;
+  va_list roles;
+  va_list sessions;
+  session *s;
+
+  if (nr_of_roles == _Others_idx) {
+    printf("Others\n");
+    va_start(sessions, nr_of_roles);
+    s = va_arg(sessions, session *);
+    for (i=0; i<s->endpoints_count; ++i) {
+      r = s->endpoints[i]->role_ptr;
+      rc |= send_int(r, val);
+    }
+    va_end(sessions);
+    return rc;
+  }
+
+#ifdef __DEBUG__
+  fprintf(stderr, " --> %s(%d)@%d ", __FUNCTION__, val, nr_of_roles);
+#endif
+  va_start(roles, nr_of_roles);
+  for (i=0; i<nr_of_roles; i++) {
+    r = va_arg(roles, role *);
+#ifdef __DEBUG__
+    fprintf(stderr, "   +");
+#endif
+    rc |= send_int(r, val);
+  }
+  va_end(roles);
+
+#ifdef __DEBUG__
+  fprintf(stderr, ".\n");
+#endif
+
+  return rc;
+}
+
+
+int mrecv_int(int *dst, int nr_of_roles, ...)
+{
+  int rc = 0;
+  int i;
+  int val;
+  role *r;
+  va_list roles;
+
+#ifdef __DEBUG__
+  fprintf(stderr, " <-- %s()@%d ", __FUNCTION__, nr_of_roles);
+#endif
+
+  va_start(roles, nr_of_roles);
+  for (i=0; i<nr_of_roles; i++) {
+    r = va_arg(roles, role *);
+    rc |= recv_int(r, &val);
+    dst[i] = val;
+  fprintf(stderr, "%d ", *dst);
+  }
+  va_end(roles);
+
+#ifdef __DEBUG__
+  fprintf(stderr, ".\n");
 #endif
 
   return rc;
