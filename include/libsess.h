@@ -9,6 +9,9 @@
 #include <stdarg.h>
 #include <zmq.h>
 
+#define _Others_idx -1
+#define _Others(sess) _Others_idx, sess
+
 typedef void role; ///< Type representing a participant/role
 
 typedef struct {
@@ -22,6 +25,8 @@ struct session_t {
   unsigned endpoints_count;
 
   role *(*get_role)(struct session_t *, char *); // lookup function.
+  char *all_roles[255];
+  unsigned all_roles_count;
   void *ctx; // Extra data.
 };
 typedef struct session_t session;
@@ -161,6 +166,30 @@ int send_double(role *r, double val);
  */
 int send_double_array(role *r, const double arr[], size_t length);
 
+
+/**
+ * \brief Send a float.
+ *
+ * @param[in] r   Role to send to
+ * @param[in] val Value to send
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_send)
+ */
+int send_float(role *r, float val);
+
+
+/**
+ * \brief Send a float array.
+ *
+ * @param[in] r      Role to send to
+ * @param[in] arr    Array to send
+ * @param[in[ length Size of array
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_send)
+ */
+int send_float_array(role *r, const float arr[], size_t length);
 
 int __send_blob(role *r, const void *blob, size_t length);
 int __receive_blob(role *r, void **dst, size_t *length);
@@ -303,6 +332,86 @@ int receive_double_array(role *r, double **arr, size_t *length);
  *          (See man page of zmq_recv)
  */
 int recv_double_array(role *r, double *arr, size_t *arr_size);
+
+
+/**
+ * \brief Receive a float.
+ *
+ * @param[in]  r   Role to send to
+ * @param[out] dst Pointer-of-pointer to variable storing recevied value
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_recv)
+ */
+int receive_float(role *r, float **dst);
+
+
+/**
+ * \brief Receive a float (pre-allocated).
+ *
+ * @param[in]  r   Role to send to
+ * @param[out] dst Pointer to variable storing recevied value
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_recv)
+ */
+int recv_float(role *r, float *dst);
+
+
+/**
+ * \brief Receive a float array.
+ *
+ * @param[in]  r      Role to send to
+ * @param[out] arr    Pointer-of-pointer to array storing recevied value
+ * @param[out] length Variable storing size of received array
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_recv)
+ */
+int receive_float_array(role *r, float **arr, size_t *length);
+
+
+/**
+ * \brief Receive a float array (pre-allocated).
+ *
+ * @param[in]     r        Role to send to
+ * @param[out]    arr      Pointer to array storing recevied value
+ * @param[in,out] arr_size Pointer to allocated size of array,
+ *                         stores size of received array after execution
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_recv)
+ */
+int recv_float_array(role *r, float *arr, size_t *arr_size);
+
+
+/**
+ * \brief Send an integer to multiple roles.
+ *
+ * @param[in] val         Value to send
+ * @param[in] nr_of_roles Number of roles to send to 
+ * @param[in] ...         Variable number (subject to nr_of_roles)
+ *                        of role variables
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_recv)
+ */
+int msend_int(int val, int nr_of_roles, ...);
+
+
+/**
+ * \brief Receive an integer from multiple roles.
+ *
+ * @param[out] dst         Pointer-of-pointer to array storing received value
+ *                         This has to be at least the size of nr_of_roles.
+ * @param[in]  nr_of_roles Number of roles to receive from
+ * @param[in]  ...         Variable number (subject to nr_of_roles)
+ *                         of role variables
+ *
+ * \returns 0 if successful, -1 otherwise and set errno
+ *          (See man page of zmq_recv)
+ */
+int mrecv_int(int *dst, int nr_of_roles, ...);
 
 
 int outbranch(role *r, int choice);

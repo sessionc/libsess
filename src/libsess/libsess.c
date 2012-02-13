@@ -113,6 +113,7 @@ void join_session(int *argc, char ***argv, session **s, const char *scribble)
   // Extract role_name from Scribble
   char *role_name;
   parse_rolename(scribble, &role_name);
+  sess->all_roles_count = parse_roles(scribble, sess->all_roles);
 
   sess->endpoints = malloc(sizeof(endpoint_t *) * (nr_of_roles-1));
 
@@ -902,11 +903,10 @@ int msend_int(int val, int nr_of_roles, ...)
   session *s;
 
   if (nr_of_roles == _Others_idx) {
-    printf("Others\n");
     va_start(sessions, nr_of_roles);
     s = va_arg(sessions, session *);
-    for (i=0; i<s->endpoints_count; ++i) {
-      r = s->endpoints[i]->role_ptr;
+    for (i=0; i<s->all_roles_count; ++i) {
+      r = s->get_role(s, s->all_roles[i]); 
       rc |= send_int(r, val);
     }
     va_end(sessions);
@@ -941,6 +941,20 @@ int mrecv_int(int *dst, int nr_of_roles, ...)
   int val;
   role *r;
   va_list roles;
+  va_list sessions;
+  session *s;
+
+  if (nr_of_roles == _Others_idx) {
+    va_start(sessions, nr_of_roles);
+    s = va_arg(sessions, session *);
+    for (i=0; i<s->all_roles_count; ++i) {
+      r = s->get_role(s, s->all_roles[i]); 
+      rc |= recv_int(r, &val); // XXX: Order of declaration
+      dst[i] = val;
+    }
+    va_end(sessions);
+    return rc;
+  }
 
 #ifdef __DEBUG__
   fprintf(stderr, " <-- %s()@%d ", __FUNCTION__, nr_of_roles);
