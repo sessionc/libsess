@@ -445,7 +445,6 @@ void normalise(st_node *root)
  */
 int remove_empty_recur_node(st_node *node)
 {
-  print_st_node(node, 0);
   int i;
   if (!node) {
     fprintf(stderr, "ERROR %s: node is not a valid st_node.\n", __FUNCTION__);
