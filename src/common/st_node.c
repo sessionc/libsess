@@ -436,7 +436,33 @@ void normalise(st_node *root)
 */
   remove_nested_branch_node(root);
   remove_leaf_branch_node(root);
+  remove_empty_recur_node(root);
   sort_branch_nodes(root);
+}
+
+/**
+ * Remove RECUR_NODEs that do not have any child nodes.
+ */
+int remove_empty_recur_node(st_node *node)
+{
+  print_st_node(node, 0);
+  int i;
+  if (!node) {
+    fprintf(stderr, "ERROR %s: node is not a valid st_node.\n", __FUNCTION__);
+    return 0;
+  }
+
+  if (node->type == RECUR_NODE && node->next_sz <= 0) {
+    return 1; // Yes, remove this
+  }
+
+  for (i=node->next_sz-1; i>=0; --i) {
+    if (remove_empty_recur_node(node->next[i])) {
+      remove_st_node_at(node, i);
+    }
+  }
+
+  return 0;
 }
 
 /**
